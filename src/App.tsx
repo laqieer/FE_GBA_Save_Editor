@@ -258,6 +258,9 @@ function App() {
           <a href="https://github.com/laqieer/fe-maps" target="_blank" rel="noreferrer">
             fe-maps
           </a>
+          <a href="https://github.com/laqieer/FE_GBA_Save_Editor" target="_blank" rel="noreferrer">
+            Source Code
+          </a>
         </div>
       </footer>
     </main>

@@ -18,6 +18,7 @@ Browser-based save editor for **Fire Emblem 6 / 7 / 8** (`.sav`) with automatic 
 
 ## References
 
+- Source code: <https://github.com/laqieer/FE_GBA_Save_Editor>
 - GameFAQs saves: <https://gamefaqs.gamespot.com/search?game=fire+emblem>
 - FE maps: <https://github.com/laqieer/fe-maps>
 - SaveMetadata: <https://github.com/StanHash/DOC/blob/master/SaveMetadata.txt>
