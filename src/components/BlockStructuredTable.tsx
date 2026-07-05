@@ -25,6 +25,10 @@ function formatOffset(offset: number): string {
   return `0x${offset.toString(16).toUpperCase().padStart(4, '0')}`
 }
 
+function formatTechnicalOffset(offset: number): string {
+  return formatOffset(offset).slice(2)
+}
+
 function formatTypeLabel(type: FieldRow['type']): string {
   return type === 'bytes' ? 'HEX' : type.toUpperCase()
 }
@@ -153,7 +157,13 @@ export function BlockStructuredTable({
   }
 
   function renderRow(row: FieldRow) {
-    const fieldLabel = t(row.labelKey, { defaultValue: row.labelKey })
+    const fieldLabel = row.labelKey.startsWith('field.tech.')
+      ? t('technicalFieldLabel', {
+          memberPath: row.memberPath,
+          offset: formatTechnicalOffset(row.offset),
+          defaultValue: `${row.memberPath} (${formatOffset(row.offset)})`,
+        })
+      : t(row.labelKey, { defaultValue: row.labelKey })
     const error = state.errors[row.key]
     const draftValue = state.drafts[row.key] ?? canonicalValues[row.key] ?? ''
     const isDirty = draftValue !== canonicalValues[row.key]

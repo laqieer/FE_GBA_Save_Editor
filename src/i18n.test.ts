@@ -8,12 +8,37 @@ describe('i18n', () => {
     expect(i18n.getResourceBundle('zh', 'translation').noEditableBlock).toBe('未找到可编辑的区块。')
   })
 
-  it('contains localization keys for structured domains and technical labels', () => {
-    const bundle = i18n.getResourceBundle('en', 'translation') as Record<string, any>
-    expect(bundle.structuredDomainUnits).toBeTruthy()
-    expect(bundle.structuredDomainInventory).toBeTruthy()
-    expect(bundle.structuredDomainProgressFlags).toBeTruthy()
-    expect(bundle.technicalFieldLabel).toBeTruthy()
+  it('contains localized structured domain and technical label keys in every locale', () => {
+    const expected = {
+      en: {
+        structuredDomainUnits: 'Units',
+        structuredDomainInventory: 'Inventory / Convoy',
+        structuredDomainProgressFlags: 'Progress / Flags',
+        technicalFieldLabel: 'Technical field: {{memberPath}} (0x{{offset}})',
+      },
+      ja: {
+        structuredDomainUnits: 'ユニット',
+        structuredDomainInventory: 'アイテム / 輸送隊',
+        structuredDomainProgressFlags: '進行 / フラグ',
+        technicalFieldLabel: '技術項目: {{memberPath}} (0x{{offset}})',
+      },
+      zh: {
+        structuredDomainUnits: '单位',
+        structuredDomainInventory: '道具 / 运输队',
+        structuredDomainProgressFlags: '进度 / 标记',
+        technicalFieldLabel: '技术字段：{{memberPath}} (0x{{offset}})',
+      },
+    } as const
+
+    for (const language of ['en', 'ja', 'zh'] as const) {
+      const bundle = i18n.getResourceBundle(language, 'translation') as Record<string, string>
+      expect(bundle.structuredDomainUnits).toBe(expected[language].structuredDomainUnits)
+      expect(bundle.structuredDomainInventory).toBe(expected[language].structuredDomainInventory)
+      expect(bundle.structuredDomainProgressFlags).toBe(
+        expected[language].structuredDomainProgressFlags,
+      )
+      expect(bundle.technicalFieldLabel).toBe(expected[language].technicalFieldLabel)
+    }
   })
 
   it('includes full-block editor labels and validation errors in every locale', () => {

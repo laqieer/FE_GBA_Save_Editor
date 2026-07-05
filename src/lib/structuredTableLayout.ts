@@ -31,16 +31,16 @@ const DOMAIN_LABELS: Record<FieldRow['domain'], LabelDescriptor> = {
     defaultLabel: 'Play state',
   },
   units: {
-    labelKey: 'structuredEditor.domain.units',
+    labelKey: 'structuredDomainUnits',
     defaultLabel: 'Units',
   },
   inventory: {
-    labelKey: 'structuredEditor.domain.inventory',
-    defaultLabel: 'Inventory',
+    labelKey: 'structuredDomainInventory',
+    defaultLabel: 'Inventory / Convoy',
   },
   progressFlags: {
-    labelKey: 'structuredEditor.domain.progressFlags',
-    defaultLabel: 'Progress flags',
+    labelKey: 'structuredDomainProgressFlags',
+    defaultLabel: 'Progress / Flags',
   },
   technical: {
     labelKey: 'structuredEditor.domain.technical',

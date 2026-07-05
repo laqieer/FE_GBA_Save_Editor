@@ -47,6 +47,12 @@ describe('structuredTableLayout', () => {
         memberPath: 'inventory.convoy[0].itemId',
       }),
       makeRow({
+        key: 'progress.chapterState',
+        domain: 'progressFlags',
+        groupKey: 'progressFlags.chapter',
+        memberPath: 'progressFlags.chapterState',
+      }),
+      makeRow({
         key: 'unit.1.level',
         domain: 'units',
         groupKey: 'units.1',
@@ -61,6 +67,13 @@ describe('structuredTableLayout', () => {
       'playState',
       'units',
       'inventory',
+      'progressFlags',
+    ])
+    expect(grouped.map((section) => section.title.labelKey)).toEqual([
+      'structuredEditor.domain.playState',
+      'structuredDomainUnits',
+      'structuredDomainInventory',
+      'structuredDomainProgressFlags',
     ])
     expect(grouped[1]?.groups.map((group) => group.groupKey)).toEqual([
       'units.0',
