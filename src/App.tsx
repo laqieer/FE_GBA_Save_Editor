@@ -6,6 +6,7 @@ import {
   updatePlayState,
   type ParsedSaveFile,
 } from './lib/saveCodec'
+import { isSupportedSaveFile } from './lib/fileValidation'
 import './App.css'
 
 type EditModel = {
@@ -51,6 +52,11 @@ function App() {
     if (!file) return
     setStatus('')
     setError('')
+    if (!isSupportedSaveFile(file.name)) {
+      setParsed(null)
+      setError(t('invalidFileType'))
+      return
+    }
     try {
       const next = await parseSaveFile(file)
       setParsed(next)
@@ -121,7 +127,7 @@ function App() {
       <section className="toolbar">
         <label className="file-input">
           {t('upload')}
-          <input type="file" accept=".sav,application/octet-stream" onChange={(e) => onFileChange(e.target.files?.[0])} />
+          <input type="file" accept=".sav" onChange={(e) => onFileChange(e.target.files?.[0])} />
         </label>
       </section>
 
