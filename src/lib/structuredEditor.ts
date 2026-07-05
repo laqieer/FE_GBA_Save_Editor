@@ -3,6 +3,10 @@ import { readBlockBytes, updateBlockBytes, type ParsedSaveFile } from './saveCod
 
 export type FieldRow = {
   key: string
+  domain: import('./blockSchema').StructuredDomain
+  groupKey: string
+  memberPath: string
+  unitIndex?: number
   offset: number
   size: number
   type: FieldType
@@ -76,6 +80,9 @@ function readValue(bytes: Uint8Array, field: BlockFieldSchema): number | string 
 function buildKnownRows(bytes: Uint8Array, fields: readonly BlockFieldSchema[]): ResolvedFieldRow[] {
   return fields.map((field) => ({
     key: field.key,
+    domain: field.domain,
+    groupKey: field.groupKey,
+    memberPath: field.memberPath,
     offset: field.offset,
     size: field.byteLength,
     byteLength: field.byteLength,
@@ -105,6 +112,9 @@ function buildGenericRows(bytes: Uint8Array, coveredOffsets: Set<number>): Resol
     const byteLength = chunkEnd - offset
     rows.push({
       key: `bytes.${offset.toString(16).padStart(4, '0')}`,
+      domain: 'technical',
+      groupKey: 'unknown',
+      memberPath: `bytes.${offset.toString(16).padStart(4, '0')}`,
       offset,
       size: byteLength,
       byteLength,

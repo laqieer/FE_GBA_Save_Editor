@@ -106,6 +106,13 @@ function buildSampleSave(gameCode: SampleGameCode = 'FE8'): File {
 }
 
 describe('structuredEditor', () => {
+  it('includes domain/group metadata on structured rows', async () => {
+    const parsed = await parseSaveFile(buildSampleSave('FE8'))
+    const row = getStructuredRows(parsed, 0)[0]
+    expect(row).toHaveProperty('domain')
+    expect(row).toHaveProperty('groupKey')
+    expect(row).toHaveProperty('memberPath')
+  })
   it('returns known PlaySt rows for FE8 save and suspend blocks plus generic rows for unknown regions', async () => {
     const parsed = await parseSaveFile(buildSampleSave())
 
