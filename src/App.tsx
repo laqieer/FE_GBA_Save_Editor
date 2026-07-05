@@ -1,21 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   parseSaveFile,
+  readBlockBytes,
   serializeSaveFile,
-  updatePlayState,
   type ParsedSaveFile,
 } from './lib/saveCodec'
 import { isSupportedSaveFile } from './lib/fileValidation'
-import { resolveEditorState } from './lib/editorState'
+import {
+  getEditableBlockIndexes,
+  resolveEditorState,
+} from './lib/editorState'
+import { BlockEditorTabs } from './components/BlockEditorTabs'
 import './App.css'
-
-type EditModel = {
-  gold: string
-  chapterIndex: string
-  chapterTurn: string
-  playerName: string
-}
 
 function App() {
   const { t, i18n } = useTranslation()
@@ -23,38 +20,18 @@ function App() {
   const [selectedBlock, setSelectedBlock] = useState(0)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
-  const [edit, setEdit] = useState<EditModel>({
-    gold: '',
-    chapterIndex: '',
-    chapterTurn: '',
-    playerName: '',
-  })
-
-  const editableBlocks = useMemo(
-    () => parsed?.blocks.filter((x) => (x.kind === 0 || x.kind === 1) && x.playState) ?? [],
-    [parsed],
-  )
   const editableIndexes = useMemo(
-    () => editableBlocks.map((x) => x.index),
-    [editableBlocks],
+    () => (parsed ? getEditableBlockIndexes(parsed) : []),
+    [parsed],
   )
   const editorState = useMemo(
     () => resolveEditorState(selectedBlock, editableIndexes),
     [selectedBlock, editableIndexes],
   )
-
-  useEffect(() => {
-    const target = editableBlocks.find((x) => x.index === editorState.editingBlock)
-    if (!target?.playState) {
-      return
-    }
-    setEdit({
-      gold: String(target.playState.gold),
-      chapterIndex: String(target.playState.chapterIndex),
-      chapterTurn: String(target.playState.chapterTurn),
-      playerName: target.playState.playerName,
-    })
-  }, [editableBlocks, editorState.editingBlock])
+  const selectedBlockView = useMemo(
+    () => parsed?.blocks.find((block) => block.index === editorState.selectedBlock) ?? null,
+    [editorState.selectedBlock, parsed],
+  )
 
   async function onFileChange(file?: File) {
     if (!file) return
@@ -68,36 +45,18 @@ function App() {
     try {
       const next = await parseSaveFile(file)
       setParsed(next)
-      const first = next.blocks.find((x) => (x.kind === 0 || x.kind === 1) && x.playState)
-      setSelectedBlock(first?.index ?? 0)
-      if (!first) {
-        setStatus(t('noEditableBlock'))
-      }
+      const editableBlockIndexes = getEditableBlockIndexes(next)
+      setSelectedBlock(editableBlockIndexes[0] ?? next.blocks[0]?.index ?? 0)
     } catch {
       setParsed(null)
       setError(t('loadError'))
     }
   }
 
-  function onApplyEdits() {
-    if (!parsed) return
-    if (editorState.editingBlock === null) {
-      setError(t('blockReadOnly'))
-      return
-    }
-    try {
-      const next = updatePlayState(parsed, editorState.editingBlock, {
-        gold: Number(edit.gold),
-        chapterIndex: Number(edit.chapterIndex),
-        chapterTurn: Number(edit.chapterTurn),
-        playerName: edit.playerName,
-      })
-      setParsed(next)
-      setStatus(t('updated'))
-      setError('')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t('loadError'))
-    }
+  function onParsedChange(next: ParsedSaveFile) {
+    setParsed(next)
+    setStatus(t('updated'))
+    setError('')
   }
 
   function onDownload() {
@@ -120,6 +79,18 @@ function App() {
     if (kind === 2) return t('blockKind2')
     if (kind === 3) return t('blockKind3')
     return t('blockKindOther')
+  }
+
+  function selectedBlockChecksumLabel() {
+    if (!parsed || editorState.editingBlock === null) {
+      return t('invalid')
+    }
+    try {
+      readBlockBytes(parsed, editorState.editingBlock)
+      return selectedBlockView?.checksumValid ? t('valid') : t('invalid')
+    } catch {
+      return t('invalid')
+    }
   }
 
   return (
@@ -150,11 +121,11 @@ function App() {
         <section className="content-grid">
           <div className="card">
             <h2>{t('metadata')}</h2>
-            <p>
+            <p className="metadata-line">
               {t('game')}: <strong>{parsed.gameCode}</strong> · {t('metadata')}:{' '}
               <strong>{parsed.metadataName || 'N/A'}</strong>
             </p>
-            <p>
+            <p className="metadata-line">
               {t('generalChecksum')}: <strong>{parsed.generalChecksumValid ? t('valid') : t('invalid')}</strong>
             </p>
             <label>
@@ -169,53 +140,32 @@ function App() {
             </label>
           </div>
 
-          <div className="card">
-            <h2>{t('slot')} #{selectedBlock}</h2>
-            {editorState.editingBlock === null && <p>{t('blockReadOnly')}</p>}
-            <label>
-              {t('gold')}
-              <input
-                disabled={editorState.editingBlock === null}
-                value={edit.gold}
-                onChange={(e) => setEdit((v) => ({ ...v, gold: e.target.value }))}
-              />
-            </label>
-            <label>
-              {t('chapter')}
-              <input
-                disabled={editorState.editingBlock === null}
-                value={edit.chapterIndex}
-                onChange={(e) => setEdit((v) => ({ ...v, chapterIndex: e.target.value }))}
-              />
-            </label>
-            <label>
-              {t('turn')}
-              <input
-                disabled={editorState.editingBlock === null}
-                value={edit.chapterTurn}
-                onChange={(e) => setEdit((v) => ({ ...v, chapterTurn: e.target.value }))}
-              />
-            </label>
-            <label>
-              {t('playerName')}
-              <input
-                disabled={editorState.editingBlock === null}
-                value={edit.playerName}
-                onChange={(e) => setEdit((v) => ({ ...v, playerName: e.target.value }))}
-              />
-            </label>
-            <div className="button-row">
-              <button
-                type="button"
-                disabled={editorState.editingBlock === null}
-                onClick={onApplyEdits}
-              >
-                {t('apply')}
-              </button>
-              <button type="button" onClick={onDownload}>
-                {t('download')}
-              </button>
+          <div className="card editor-card">
+            <div className="card-heading">
+              <div>
+                <h2>{t('blockEditor')}</h2>
+                {selectedBlockView && (
+                  <p className="muted">
+                    {t('slot')} #{selectedBlockView.index} · {blockKindLabel(selectedBlockView.kind)} · {t('checksum')}:{' '}
+                    <strong>{selectedBlockChecksumLabel()}</strong>
+                  </p>
+                )}
+              </div>
+              <div className="button-row">
+                <button type="button" onClick={onDownload}>
+                  {t('download')}
+                </button>
+              </div>
             </div>
+            {editorState.editingBlock === null ? (
+              <p>{t('blockReadOnly')}</p>
+            ) : (
+              <BlockEditorTabs
+                parsed={parsed}
+                blockIndex={editorState.editingBlock}
+                onParsedChange={onParsedChange}
+              />
+            )}
           </div>
 
           <div className="card table-card">

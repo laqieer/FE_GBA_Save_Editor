@@ -111,10 +111,12 @@ describe('structuredEditor', () => {
     const saveRows = getStructuredRows(parsed, 0)
     const suspendRows = getStructuredRows(parsed, 1)
     const archiveRows = getStructuredRows(parsed, 6)
+    const playerNameRow = saveRows.find((row) => row.labelKey === 'field.playst.playerName')
 
     expect(saveRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(true)
     expect(saveRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(true)
     expect(saveRows.some((row) => row.type === 'bytes')).toBe(true)
+    expect(playerNameRow?.size).toBe(0x0b)
 
     expect(suspendRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(true)
     expect(suspendRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(true)

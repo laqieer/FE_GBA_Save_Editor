@@ -4,7 +4,7 @@ import { readBlockBytes, updateBlockBytes, type ParsedSaveFile } from './saveCod
 export type FieldRow = {
   key: string
   offset: number
-  size: 1 | 2 | 4
+  size: number
   type: FieldType
   labelKey: string
   value: number | string
@@ -75,7 +75,7 @@ function buildKnownRows(bytes: Uint8Array, fields: readonly BlockFieldSchema[]):
   return fields.map((field) => ({
     key: field.key,
     offset: field.offset,
-    size: field.size,
+    size: field.byteLength,
     byteLength: field.byteLength,
     type: field.type,
     labelKey: field.labelKey,
