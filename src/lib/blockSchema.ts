@@ -23,13 +23,16 @@ export const PLAYST_FIELD_SCHEMA: readonly BlockFieldSchema[] = [
 ] as const
 
 const EMPTY_BLOCK_SCHEMA: readonly BlockFieldSchema[] = []
+const BLOCK_SCHEMA_BY_GAME: Readonly<Record<GameCode, Readonly<Partial<Record<number, readonly BlockFieldSchema[]>>>>> = {
+  FE6: {},
+  FE7: {},
+  FE8: {
+    0: PLAYST_FIELD_SCHEMA,
+    1: PLAYST_FIELD_SCHEMA,
+  },
+  UNKNOWN: {},
+}
 
 export function getBlockSchema(gameCode: GameCode, blockKind: number): readonly BlockFieldSchema[] {
-  if (gameCode === 'UNKNOWN') {
-    return EMPTY_BLOCK_SCHEMA
-  }
-  if (blockKind === 0 || blockKind === 1) {
-    return PLAYST_FIELD_SCHEMA
-  }
-  return EMPTY_BLOCK_SCHEMA
+  return BLOCK_SCHEMA_BY_GAME[gameCode][blockKind] ?? EMPTY_BLOCK_SCHEMA
 }

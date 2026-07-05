@@ -6,6 +6,8 @@ import {
   getStructuredRows,
 } from './structuredEditor'
 
+type SampleGameCode = 'FE6' | 'FE7' | 'FE8' | 'UNKNOWN'
+
 function writeU16(buf: Uint8Array, offset: number, value: number) {
   buf[offset] = value & 0xff
   buf[offset + 1] = (value >>> 8) & 0xff
@@ -47,9 +49,11 @@ function checksum32(data: Uint8Array): number {
   return ((addAcc & 0xffff) | ((xorAcc & 0xffff) << 16)) >>> 0
 }
 
-function buildSampleSave(): File {
+function buildSampleSave(gameCode: SampleGameCode = 'FE8'): File {
   const buf = new Uint8Array(0x1400)
-  const magic = new TextEncoder().encode('AGB-FE8\u0000')
+  const metadataName =
+    gameCode === 'FE6' ? 'AGB-FE6\u0000' : gameCode === 'FE7' ? 'AGB-FE7\u0000' : gameCode === 'FE8' ? 'AGB-FE8\u0000' : 'AGB-UNK\u0000'
+  const magic = new TextEncoder().encode(metadataName)
   buf.set(magic, 0x00)
   writeU32(buf, 0x08, 0x40624)
   writeU16(buf, 0x0c, 0x200a)
@@ -101,7 +105,7 @@ function buildSampleSave(): File {
 }
 
 describe('structuredEditor', () => {
-  it('returns known PlaySt rows for save and suspend blocks plus generic rows for unknown regions', async () => {
+  it('returns known PlaySt rows for FE8 save and suspend blocks plus generic rows for unknown regions', async () => {
     const parsed = await parseSaveFile(buildSampleSave())
 
     const saveRows = getStructuredRows(parsed, 0)
@@ -117,6 +121,20 @@ describe('structuredEditor', () => {
 
     expect(archiveRows.length).toBe(parsed.blocks[6].size)
     expect(archiveRows.every((row) => row.type === 'bytes')).toBe(true)
+  })
+
+  it('falls back to generic rows for FE6, FE7, and UNKNOWN save blocks', async () => {
+    for (const gameCode of ['FE6', 'FE7', 'UNKNOWN'] as const) {
+      const parsed = await parseSaveFile(buildSampleSave(gameCode))
+      const saveRows = getStructuredRows(parsed, 0)
+
+      expect(parsed.gameCode).toBe(gameCode)
+      expect(saveRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(false)
+      expect(saveRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(false)
+      expect(saveRows.length).toBe(parsed.blocks[0].size)
+      expect(saveRows.every((row) => row.type === 'bytes')).toBe(true)
+      expect(saveRows.some((row) => row.labelKey === 'field.unknown.byte')).toBe(true)
+    }
   })
 
   it('applies structured edits to known and generic rows while preserving valid checksums', async () => {

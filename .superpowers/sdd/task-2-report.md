@@ -162,3 +162,15 @@ npm run build
 
 - The exported `FieldRow.size` remains within the required `1 | 2 | 4` union. For text rows, actual encoded length is tracked internally via schema `byteLength`, allowing `playerName` to stay editable without changing the requested row shape.
 - Generic rows are emitted one byte at a time to guarantee complete block coverage with straightforward validation and editing semantics.
+
+## 2026-07-05 Review Follow-up
+
+- Scoped `getBlockSchema(...)` by `gameCode` so only `FE8` block kinds `0` and `1` receive `PLAYST_FIELD_SCHEMA`; `FE6`, `FE7`, and `UNKNOWN` now fall back to generic byte rows unless a game-specific schema is explicitly added later.
+- Expanded `src/lib/structuredEditor.test.ts` with regression coverage proving:
+  - `FE8` block kind `0` still includes known rows like `field.playst.gold`
+  - `FE6`, `FE7`, and `UNKNOWN` block kind `0` exclude FE8-only known rows
+  - those non-FE8 cases still expose full generic byte coverage
+- Command outcomes:
+  - `npm run test:run -- src/lib/structuredEditor.test.ts` → FAIL before fix (`falls back to generic rows for FE6, FE7, and UNKNOWN save blocks`), then PASS (`4/4`)
+  - `npm run test:run -- src/lib/blockCodec.test.ts src/lib/saveCodec.test.ts src/lib/structuredEditor.test.ts` → PASS (`14/14`)
+  - `npm run build` → PASS
