@@ -485,36 +485,135 @@ export function buildFe8ProgressSchema(): readonly BlockFieldSchema[] {
   ] as const
 }
 
-function buildLegacyUnitSchema(): readonly BlockFieldSchema[] {
-  return [
-    ...buildFe8UnitSchema(),
+type LegacyUnitFieldDefinition = {
+  key: string
+  offset: number
+  labelKey: string
+  memberName: string
+}
+
+function buildLegacyTechnicalUnitFields(
+  unitKeyPrefix: string,
+  memberPrefix: string,
+): readonly BlockFieldSchema[] {
+  const fields: BlockFieldSchema[] = []
+
+  for (let offset = 0x34; offset <= 0x43; offset += 1) {
+    const hexOffset = offset.toString(16)
+    fields.push(
+      makeTechnicalField({
+        key: `${unitKeyPrefix}.0.raw${hexOffset}`,
+        offset,
+        size: 1,
+        type: 'u8',
+        domain: 'units',
+        groupKey: 'units.0',
+        memberPath: `${memberPrefix}[0].raw_${hexOffset}`,
+      }),
+    )
+  }
+
+  fields.push(
     makeTechnicalField({
-      key: 'unit.0.raw43',
-      offset: 0x43,
-      size: 1,
-      type: 'u8',
-      domain: 'units',
-      groupKey: 'units.0',
-      memberPath: 'units[0].raw_43',
-    }),
-    makeTechnicalField({
-      key: 'unit.0.raw44',
+      key: `${unitKeyPrefix}.0.raw44`,
       offset: 0x44,
       size: 2,
       type: 'u16',
       domain: 'units',
       groupKey: 'units.0',
-      memberPath: 'units[0].raw_44',
+      memberPath: `${memberPrefix}[0].raw_44`,
     }),
+  )
+
+  return fields
+}
+
+function buildLegacyUnitSchema(
+  unitKeyPrefix: string,
+  memberPrefix: string,
+  fieldDefinitions: readonly LegacyUnitFieldDefinition[],
+): readonly BlockFieldSchema[] {
+  return [
+    ...fieldDefinitions.map((field) =>
+      makeField({
+        key: `${unitKeyPrefix}.0.${field.key}`,
+        offset: field.offset,
+        size: 1,
+        type: 'u8',
+        labelKey: field.labelKey,
+        domain: 'units',
+        groupKey: 'units.0',
+        memberPath: `${memberPrefix}[0].${field.memberName}`,
+      }),
+    ),
+    ...buildLegacyTechnicalUnitFields(unitKeyPrefix, memberPrefix),
   ] as const
 }
 
+export function buildFe6UnitSchema(): readonly BlockFieldSchema[] {
+  return buildLegacyUnitSchema('fe6Unit', 'fe6Units', [
+    {
+      key: 'characterId',
+      offset: 0x30,
+      labelKey: 'field.fe6Unit.characterId',
+      memberName: 'characterId',
+    },
+    {
+      key: 'classId',
+      offset: 0x31,
+      labelKey: 'field.fe6Unit.classId',
+      memberName: 'classId',
+    },
+    {
+      key: 'level',
+      offset: 0x32,
+      labelKey: 'field.fe6Unit.level',
+      memberName: 'level',
+    },
+    {
+      key: 'exp',
+      offset: 0x33,
+      labelKey: 'field.fe6Unit.exp',
+      memberName: 'exp',
+    },
+  ])
+}
+
+export function buildFe7UnitSchema(): readonly BlockFieldSchema[] {
+  return buildLegacyUnitSchema('fe7Unit', 'fe7Units', [
+    {
+      key: 'characterId',
+      offset: 0x30,
+      labelKey: 'field.fe7Unit.characterId',
+      memberName: 'characterId',
+    },
+    {
+      key: 'classId',
+      offset: 0x31,
+      labelKey: 'field.fe7Unit.classId',
+      memberName: 'classId',
+    },
+    {
+      key: 'level',
+      offset: 0x32,
+      labelKey: 'field.fe7Unit.level',
+      memberName: 'level',
+    },
+    {
+      key: 'exp',
+      offset: 0x33,
+      labelKey: 'field.fe7Unit.exp',
+      memberName: 'exp',
+    },
+  ])
+}
+
 export function buildFe6SaveSchema(): readonly BlockFieldSchema[] {
-  return [...PLAYST_FIELD_SCHEMA, ...buildLegacyUnitSchema()]
+  return [...PLAYST_FIELD_SCHEMA, ...buildFe6UnitSchema()]
 }
 
 export function buildFe7SaveSchema(): readonly BlockFieldSchema[] {
-  return [...PLAYST_FIELD_SCHEMA, ...buildLegacyUnitSchema()]
+  return [...PLAYST_FIELD_SCHEMA, ...buildFe7UnitSchema()]
 }
 
 const EMPTY_BLOCK_SCHEMA: readonly BlockFieldSchema[] = []

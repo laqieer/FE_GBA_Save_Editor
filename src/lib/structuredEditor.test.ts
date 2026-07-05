@@ -146,7 +146,10 @@ describe('structuredEditor', () => {
   })
 
   it('FE6 and FE7 structured rows are not byte-chunk-only', async () => {
-    for (const gameCode of ['FE6', 'FE7'] as const) {
+    for (const [gameCode, levelLabelKey, levelMemberPath, technicalLabelKey] of [
+      ['FE6', 'field.fe6Unit.level', 'fe6Units[0].level', 'field.tech.fe6Units_0_raw_34'],
+      ['FE7', 'field.fe7Unit.level', 'fe7Units[0].level', 'field.tech.fe7Units_0_raw_34'],
+    ] as const) {
       const parsed = await parseSaveFile(buildSampleSave(gameCode))
 
       for (const blockIndex of [0, 1] as const) {
@@ -155,17 +158,21 @@ describe('structuredEditor', () => {
         expect(parsed.gameCode).toBe(gameCode)
         expect(rows.some((row) => row.domain === 'units')).toBe(true)
         expect(rows.some((row) => row.type !== 'bytes')).toBe(true)
-        expect(rows.some((row) => row.labelKey.startsWith('field.tech.'))).toBe(true)
+        expect(rows.some((row) => row.labelKey === levelLabelKey)).toBe(true)
+        expect(rows.some((row) => row.memberPath === levelMemberPath)).toBe(true)
+        expect(rows.some((row) => row.labelKey === 'field.unit.level')).toBe(false)
+        expect(rows.some((row) => row.memberPath === 'units[0].level')).toBe(false)
+        expect(rows.some((row) => row.labelKey === technicalLabelKey)).toBe(true)
       }
     }
   })
 
   it('unnamed FE6/FE7 members use deterministic technical labels', async () => {
     const parsed = await parseSaveFile(buildSampleSave('FE6'))
-    const technicalRow = getStructuredRows(parsed, 0).find((row) => row.labelKey.startsWith('field.tech.'))
+    const technicalRow = getStructuredRows(parsed, 0).find((row) => row.memberPath === 'fe6Units[0].raw_34')
 
-    expect(technicalRow?.labelKey).toMatch(/^field\.tech\./)
-    expect(technicalRow?.memberPath).toContain('units[')
+    expect(technicalRow?.labelKey).toBe('field.tech.fe6Units_0_raw_34')
+    expect(technicalRow?.memberPath).toBe('fe6Units[0].raw_34')
   })
 
   it('unknown save blocks still fall back to generic rows', async () => {
