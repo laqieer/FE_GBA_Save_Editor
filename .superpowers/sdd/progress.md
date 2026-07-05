@@ -6,3 +6,4 @@ Task 4: complete (commits edcf647..HEAD, review clean after save-switch draft re
 Task 5: complete (commits 521c102..2d74981, review clean)
 MSF Task 1: complete (commits e83ee8c..df1aab2, review clean)
 MSF Task 2: complete (commits e6699eb..9a50b7b, review clean)
+MSF Task 3: complete (commits 5fc9828..de8e8b8, review clean)
