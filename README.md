@@ -44,6 +44,8 @@ npm run build
 
 ## GitHub Pages
 
+Live site: <https://laqieer.github.io/FE_GBA_Save_Editor/>
+
 1. Push to `main`.
 2. In repository settings, set **Pages** source to **GitHub Actions**.
 3. Workflow `.github/workflows/deploy-pages.yml` builds and deploys `dist/`.
