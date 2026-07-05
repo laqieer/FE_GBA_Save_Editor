@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  SAVE_CODEC_ERROR_KEYS,
   parseSaveFile,
+  readBlockBytes,
   serializeSaveFile,
   updatePlayState,
+  updateBlockBytes,
   type ParsedSaveFile,
 } from './saveCodec'
 
@@ -101,5 +104,21 @@ describe('saveCodec', () => {
 
     expect(parsed.blocks[0].playState?.gold).toBe(12345)
     expect(changed.blocks[0].playState?.gold).toBe(1)
+  })
+
+  it('keeps original bytes unchanged when updateBlockBytes rejects invalid input', async () => {
+    const parsed = await parseSaveFile(buildSampleSave())
+    const before = parsed.bytes.slice()
+
+    expect(() =>
+      updateBlockBytes(parsed, 0, 0x7f, Uint8Array.from([0xaa, 0xbb])),
+    ).toThrow(SAVE_CODEC_ERROR_KEYS.patchOutOfRange)
+    expect(parsed.bytes).toEqual(before)
+  })
+
+  it('throws stable keys for invalid block reads', async () => {
+    const parsed = await parseSaveFile(buildSampleSave())
+
+    expect(() => readBlockBytes(parsed, 99)).toThrow(SAVE_CODEC_ERROR_KEYS.invalidBlock)
   })
 })

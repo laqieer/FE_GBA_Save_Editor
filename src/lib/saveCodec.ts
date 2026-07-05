@@ -41,6 +41,11 @@ export interface PlayStatePatch {
   playerName?: string
 }
 
+export const SAVE_CODEC_ERROR_KEYS = {
+  invalidBlock: 'saveCodec.invalidBlock',
+  patchOutOfRange: 'saveCodec.patchOutOfRange',
+} as const
+
 const BLOCK_INFO_START = 0x64
 const BLOCK_INFO_COUNT = 7
 const BLOCK_INFO_SIZE = 0x10
@@ -142,6 +147,16 @@ function parsePlayState(bytes: Uint8Array, base: number, size: number): PlayStat
   }
 }
 
+function isPresentBlock(block: Pick<SaveBlockView, 'kind' | 'magic32' | 'offset' | 'size'>, byteLength: number) {
+  return (
+    block.size > 0 &&
+    block.offset > 0 &&
+    block.offset + block.size <= byteLength &&
+    block.magic32 !== 0 &&
+    block.kind !== 0xff
+  )
+}
+
 function parseFromBytes(fileName: string, bytes: Uint8Array): ParsedSaveFile {
   const metadataName = readFixedString(bytes, 0, 8)
   const metadataChecksum = readU16(bytes, GENERAL_CHECKSUM_OFFSET)
@@ -161,13 +176,7 @@ function parseFromBytes(fileName: string, bytes: Uint8Array): ParsedSaveFile {
     let checksumValid = false
     let playState: PlayState | undefined
 
-    if (
-      size > 0 &&
-      offset > 0 &&
-      offset + size <= bytes.length &&
-      magic32 !== 0 &&
-      kind !== 0xff
-    ) {
+    if (isPresentBlock({ kind, magic32, offset, size }, bytes.length)) {
       const body = bytes.slice(offset, offset + size)
       checksumComputed = computeChecksum32(body)
       checksumValid = checksumComputed === checksum32
@@ -203,6 +212,46 @@ function parseFromBytes(fileName: string, bytes: Uint8Array): ParsedSaveFile {
 export async function parseSaveFile(file: File): Promise<ParsedSaveFile> {
   const bytes = new Uint8Array(await file.arrayBuffer())
   return parseFromBytes(file.name, bytes)
+}
+
+export function readBlockBytes(parsed: ParsedSaveFile, blockIndex: number): Uint8Array {
+  const block = parsed.blocks[blockIndex]
+  if (!block || !isPresentBlock(block, parsed.bytes.length)) {
+    throw new Error(SAVE_CODEC_ERROR_KEYS.invalidBlock)
+  }
+  return parsed.bytes.slice(block.offset, block.offset + block.size)
+}
+
+export function updateBlockBytes(
+  parsed: ParsedSaveFile,
+  blockIndex: number,
+  offsetInBlock: number,
+  patch: Uint8Array,
+): ParsedSaveFile {
+  const block = parsed.blocks[blockIndex]
+  if (!block || !isPresentBlock(block, parsed.bytes.length)) {
+    throw new Error(SAVE_CODEC_ERROR_KEYS.invalidBlock)
+  }
+  if (offsetInBlock < 0 || offsetInBlock + patch.length > block.size) {
+    throw new Error(SAVE_CODEC_ERROR_KEYS.patchOutOfRange)
+  }
+
+  const bytes = parsed.bytes.slice()
+  bytes.set(patch, block.offset + offsetInBlock)
+
+  const blockBody = bytes.slice(block.offset, block.offset + block.size)
+  writeU32(
+    bytes,
+    BLOCK_INFO_START + blockIndex * BLOCK_INFO_SIZE + 0x0c,
+    computeChecksum32(blockBody),
+  )
+  writeU16(
+    bytes,
+    GENERAL_CHECKSUM_OFFSET,
+    computeChecksum16(bytes.slice(0, GENERAL_CHECKSUM_SIZE)),
+  )
+
+  return parseFromBytes(parsed.fileName, bytes)
 }
 
 export function updatePlayState(
