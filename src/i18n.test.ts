@@ -51,6 +51,7 @@ describe('i18n', () => {
       'field.unit.status',
       'field.unit.affiliation',
       'field.unit.aiFlags',
+      'field.unit.stateFlags',
       'field.unit.rescueTarget',
       'field.inventory.convoyItemId',
       'field.inventory.convoyUses',
