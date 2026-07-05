@@ -25,6 +25,17 @@ function makeField(field: BlockFieldSchemaInput): BlockFieldSchema {
   }
 }
 
+function createTechnicalLabel(memberPath: string): string {
+  return `field.tech.${memberPath.replace(/[.[\]]+/g, '_').replace(/_+$/, '')}`
+}
+
+function makeTechnicalField(field: Omit<BlockFieldSchemaInput, 'labelKey'>): BlockFieldSchema {
+  return makeField({
+    ...field,
+    labelKey: createTechnicalLabel(field.memberPath),
+  })
+}
+
 export const PLAYST_FIELD_SCHEMA: readonly BlockFieldSchema[] = [
   makeField({
     key: 'playst.gold',
@@ -474,6 +485,38 @@ export function buildFe8ProgressSchema(): readonly BlockFieldSchema[] {
   ] as const
 }
 
+function buildLegacyUnitSchema(): readonly BlockFieldSchema[] {
+  return [
+    ...buildFe8UnitSchema(),
+    makeTechnicalField({
+      key: 'unit.0.raw43',
+      offset: 0x43,
+      size: 1,
+      type: 'u8',
+      domain: 'units',
+      groupKey: 'units.0',
+      memberPath: 'units[0].raw_43',
+    }),
+    makeTechnicalField({
+      key: 'unit.0.raw44',
+      offset: 0x44,
+      size: 2,
+      type: 'u16',
+      domain: 'units',
+      groupKey: 'units.0',
+      memberPath: 'units[0].raw_44',
+    }),
+  ] as const
+}
+
+export function buildFe6SaveSchema(): readonly BlockFieldSchema[] {
+  return [...PLAYST_FIELD_SCHEMA, ...buildLegacyUnitSchema()]
+}
+
+export function buildFe7SaveSchema(): readonly BlockFieldSchema[] {
+  return [...PLAYST_FIELD_SCHEMA, ...buildLegacyUnitSchema()]
+}
+
 const EMPTY_BLOCK_SCHEMA: readonly BlockFieldSchema[] = []
 const FE8_BLOCK_SCHEMA: readonly BlockFieldSchema[] = [
   ...PLAYST_FIELD_SCHEMA,
@@ -481,9 +524,17 @@ const FE8_BLOCK_SCHEMA: readonly BlockFieldSchema[] = [
   ...buildFe8InventorySchema(),
   ...buildFe8ProgressSchema(),
 ]
+const FE6_BLOCK_SCHEMA: readonly BlockFieldSchema[] = buildFe6SaveSchema()
+const FE7_BLOCK_SCHEMA: readonly BlockFieldSchema[] = buildFe7SaveSchema()
 const BLOCK_SCHEMA_BY_GAME: Readonly<Record<GameCode, Readonly<Partial<Record<number, readonly BlockFieldSchema[]>>>>> = {
-  FE6: {},
-  FE7: {},
+  FE6: {
+    0: FE6_BLOCK_SCHEMA,
+    1: FE6_BLOCK_SCHEMA,
+  },
+  FE7: {
+    0: FE7_BLOCK_SCHEMA,
+    1: FE7_BLOCK_SCHEMA,
+  },
   FE8: {
     0: FE8_BLOCK_SCHEMA,
     1: FE8_BLOCK_SCHEMA,

@@ -145,19 +145,38 @@ describe('structuredEditor', () => {
     expect(archiveRows.every((row) => row.size === GENERIC_ROW_CHUNK_SIZE)).toBe(true)
   })
 
-  it('falls back to generic rows for FE6, FE7, and UNKNOWN save blocks', async () => {
-    for (const gameCode of ['FE6', 'FE7', 'UNKNOWN'] as const) {
+  it('FE6 and FE7 structured rows are not byte-chunk-only', async () => {
+    for (const gameCode of ['FE6', 'FE7'] as const) {
       const parsed = await parseSaveFile(buildSampleSave(gameCode))
-      const saveRows = getStructuredRows(parsed, 0)
 
-      expect(parsed.gameCode).toBe(gameCode)
-      expect(saveRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(false)
-      expect(saveRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(false)
-      expect(saveRows.length).toBe(parsed.blocks[0].size / GENERIC_ROW_CHUNK_SIZE)
-      expect(saveRows.every((row) => row.type === 'bytes')).toBe(true)
-      expect(saveRows.every((row) => row.size === GENERIC_ROW_CHUNK_SIZE)).toBe(true)
-      expect(saveRows.some((row) => row.labelKey === 'field.unknown.bytes')).toBe(true)
+      for (const blockIndex of [0, 1] as const) {
+        const rows = getStructuredRows(parsed, blockIndex)
+
+        expect(parsed.gameCode).toBe(gameCode)
+        expect(rows.some((row) => row.domain === 'units')).toBe(true)
+        expect(rows.some((row) => row.type !== 'bytes')).toBe(true)
+        expect(rows.some((row) => row.labelKey.startsWith('field.tech.'))).toBe(true)
+      }
     }
+  })
+
+  it('unnamed FE6/FE7 members use deterministic technical labels', async () => {
+    const parsed = await parseSaveFile(buildSampleSave('FE6'))
+    const technicalRow = getStructuredRows(parsed, 0).find((row) => row.labelKey.startsWith('field.tech.'))
+
+    expect(technicalRow?.labelKey).toMatch(/^field\.tech\./)
+    expect(technicalRow?.memberPath).toContain('units[')
+  })
+
+  it('unknown save blocks still fall back to generic rows', async () => {
+    const parsed = await parseSaveFile(buildSampleSave('UNKNOWN'))
+    const saveRows = getStructuredRows(parsed, 0)
+
+    expect(saveRows.length).toBe(parsed.blocks[0].size / GENERIC_ROW_CHUNK_SIZE)
+    expect(saveRows.every((row) => row.type === 'bytes')).toBe(true)
+    expect(saveRows.every((row) => row.size === GENERIC_ROW_CHUNK_SIZE)).toBe(true)
+    expect(saveRows.some((row) => row.labelKey === 'field.unknown.bytes')).toBe(true)
+    expect(saveRows.some((row) => row.domain === 'units')).toBe(false)
   })
 
   it('applies structured edits to known and generic rows while preserving valid checksums', async () => {

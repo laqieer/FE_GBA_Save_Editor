@@ -77,12 +77,27 @@ function readValue(bytes: Uint8Array, field: BlockFieldSchema): number | string 
   }
 }
 
+function resolveUnitIndex(field: BlockFieldSchema): number | undefined {
+  if (field.domain !== 'units') {
+    return undefined
+  }
+
+  const groupMatch = /^units\.(\d+)$/.exec(field.groupKey)
+  if (groupMatch) {
+    return Number(groupMatch[1])
+  }
+
+  const memberMatch = /^units\[(\d+)\]/.exec(field.memberPath)
+  return memberMatch ? Number(memberMatch[1]) : undefined
+}
+
 function buildKnownRows(bytes: Uint8Array, fields: readonly BlockFieldSchema[]): ResolvedFieldRow[] {
   return fields.map((field) => ({
     key: field.key,
     domain: field.domain,
     groupKey: field.groupKey,
     memberPath: field.memberPath,
+    unitIndex: resolveUnitIndex(field),
     offset: field.offset,
     size: field.byteLength,
     byteLength: field.byteLength,
