@@ -81,6 +81,10 @@ describe('hexEditor', () => {
     ])
   })
 
+  it('rejects invalid bytes-per-row values', () => {
+    expect(() => toHexRows(Uint8Array.from([0x41, 0x42]), 1.5)).toThrow('Invalid bytes per row')
+  })
+
   it('applies hex edits across every block while preserving valid checksums', async () => {
     const parsed = await parseSaveFile(buildSampleSave())
     let changed = parsed

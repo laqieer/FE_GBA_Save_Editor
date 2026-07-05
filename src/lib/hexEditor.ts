@@ -18,6 +18,10 @@ function toAsciiChar(value: number): string {
 }
 
 export function toHexRows(blockBytes: Uint8Array, bytesPerRow = DEFAULT_BYTES_PER_ROW): HexRow[] {
+  if (!Number.isInteger(bytesPerRow) || bytesPerRow <= 0) {
+    throw new Error('Invalid bytes per row')
+  }
+
   const rows: HexRow[] = []
 
   for (let rowOffset = 0; rowOffset < blockBytes.length; rowOffset += bytesPerRow) {
