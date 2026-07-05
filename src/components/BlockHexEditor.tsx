@@ -7,7 +7,7 @@ import {
 import { getHexPageCount, getHexPageRows, toHexRows } from '../lib/hexEditor'
 
 type BlockHexEditorProps = {
-  blockKey: number
+  blockKey: string
   blockBytes: Uint8Array
   onApplyEdit: (absoluteByteOffset: number, nextHexPair: string) => void
 }

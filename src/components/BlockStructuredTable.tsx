@@ -7,7 +7,7 @@ import {
 import type { FieldRow } from '../lib/structuredEditor'
 
 type BlockStructuredTableProps = {
-  blockKey: number
+  blockKey: string
   rows: FieldRow[]
   onApplyEdit: (rowKey: string, nextValue: string) => void
 }

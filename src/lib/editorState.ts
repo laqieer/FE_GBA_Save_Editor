@@ -45,3 +45,10 @@ export function resolveEditorState(
       : null,
   }
 }
+
+export function buildEditorBlockKey(
+  saveRevision: number,
+  blockIndex: number,
+): string {
+  return `${saveRevision}:${blockIndex}`
+}

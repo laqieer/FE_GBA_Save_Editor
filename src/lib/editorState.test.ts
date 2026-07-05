@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { getEditableBlockIndexes, resolveEditorState } from './editorState'
+import {
+  buildEditorBlockKey,
+  getEditableBlockIndexes,
+  resolveEditorState,
+} from './editorState'
 
 describe('resolveEditorState', () => {
   it('does not force selected block back to first editable block', () => {
@@ -70,5 +74,10 @@ describe('resolveEditorState', () => {
       selectedBlock: 6,
       editingBlock: null,
     })
+  })
+
+  it('changes editor block key when loading a new save on the same block', () => {
+    expect(buildEditorBlockKey(1, 0)).toBe('1:0')
+    expect(buildEditorBlockKey(2, 0)).toBe('2:0')
   })
 })

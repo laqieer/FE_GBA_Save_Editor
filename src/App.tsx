@@ -8,6 +8,7 @@ import {
 } from './lib/saveCodec'
 import { isSupportedSaveFile } from './lib/fileValidation'
 import {
+  buildEditorBlockKey,
   getEditableBlockIndexes,
   resolveEditorState,
 } from './lib/editorState'
@@ -18,6 +19,7 @@ function App() {
   const { t, i18n } = useTranslation()
   const [parsed, setParsed] = useState<ParsedSaveFile | null>(null)
   const [selectedBlock, setSelectedBlock] = useState(0)
+  const [saveRevision, setSaveRevision] = useState(0)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
   const editableIndexes = useMemo(
@@ -45,6 +47,7 @@ function App() {
     try {
       const next = await parseSaveFile(file)
       setParsed(next)
+      setSaveRevision((current) => current + 1)
       const editableBlockIndexes = getEditableBlockIndexes(next)
       setSelectedBlock(editableBlockIndexes[0] ?? next.blocks[0]?.index ?? 0)
     } catch {
@@ -163,6 +166,7 @@ function App() {
               <BlockEditorTabs
                 parsed={parsed}
                 blockIndex={editorState.editingBlock}
+                blockKey={buildEditorBlockKey(saveRevision, editorState.editingBlock)}
                 onParsedChange={onParsedChange}
               />
             )}

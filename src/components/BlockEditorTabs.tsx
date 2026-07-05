@@ -9,6 +9,7 @@ import { BlockStructuredTable } from './BlockStructuredTable'
 type BlockEditorTabsProps = {
   parsed: ParsedSaveFile
   blockIndex: number
+  blockKey: string
   onParsedChange: (next: ParsedSaveFile) => void
 }
 
@@ -17,6 +18,7 @@ type EditorTab = 'structured' | 'hex'
 export function BlockEditorTabs({
   parsed,
   blockIndex,
+  blockKey,
   onParsedChange,
 }: BlockEditorTabsProps) {
   const { t } = useTranslation()
@@ -64,14 +66,14 @@ export function BlockEditorTabs({
 
       <div role="tabpanel" hidden={activeTab !== 'structured'}>
         <BlockStructuredTable
-          blockKey={blockIndex}
+          blockKey={blockKey}
           rows={structuredRows}
           onApplyEdit={handleStructuredEdit}
         />
       </div>
       <div role="tabpanel" hidden={activeTab !== 'hex'}>
         <BlockHexEditor
-          blockKey={blockIndex}
+          blockKey={blockKey}
           blockBytes={blockBytes}
           onApplyEdit={handleHexEdit}
         />
