@@ -232,7 +232,12 @@ export function updateBlockBytes(
   if (!block || !isPresentBlock(block, parsed.bytes.length)) {
     throw new Error(SAVE_CODEC_ERROR_KEYS.invalidBlock)
   }
-  if (offsetInBlock < 0 || offsetInBlock + patch.length > block.size) {
+  if (
+    !Number.isFinite(offsetInBlock) ||
+    !Number.isInteger(offsetInBlock) ||
+    offsetInBlock < 0 ||
+    offsetInBlock + patch.length > block.size
+  ) {
     throw new Error(SAVE_CODEC_ERROR_KEYS.patchOutOfRange)
   }
 

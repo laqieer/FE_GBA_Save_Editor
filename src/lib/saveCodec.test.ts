@@ -106,12 +106,36 @@ describe('saveCodec', () => {
     expect(changed.blocks[0].playState?.gold).toBe(1)
   })
 
+  it('updates arbitrary bytes in play-state block #0 and keeps checksum valid', async () => {
+    const parsed = await parseSaveFile(buildSampleSave())
+    const patch = Uint8Array.from([0xaa, 0xbb, 0xcc])
+    const changed = updateBlockBytes(parsed, 0, 0x10, patch)
+
+    expect(readBlockBytes(changed, 0).slice(0x10, 0x13)).toEqual(patch)
+    expect(changed.blocks[0].checksumValid).toBe(true)
+  })
+
   it('keeps original bytes unchanged when updateBlockBytes rejects invalid input', async () => {
     const parsed = await parseSaveFile(buildSampleSave())
     const before = parsed.bytes.slice()
 
     expect(() =>
       updateBlockBytes(parsed, 0, 0x7f, Uint8Array.from([0xaa, 0xbb])),
+    ).toThrow(SAVE_CODEC_ERROR_KEYS.patchOutOfRange)
+    expect(parsed.bytes).toEqual(before)
+  })
+
+  it('rejects non-integer block offsets without mutating canonical bytes', async () => {
+    const parsed = await parseSaveFile(buildSampleSave())
+    const before = parsed.bytes.slice()
+
+    expect(() =>
+      updateBlockBytes(parsed, 0, Number.NaN, Uint8Array.from([0xaa])),
+    ).toThrow(SAVE_CODEC_ERROR_KEYS.patchOutOfRange)
+    expect(parsed.bytes).toEqual(before)
+
+    expect(() =>
+      updateBlockBytes(parsed, 0, 1.5, Uint8Array.from([0xbb])),
     ).toThrow(SAVE_CODEC_ERROR_KEYS.patchOutOfRange)
     expect(parsed.bytes).toEqual(before)
   })
