@@ -7,6 +7,7 @@ import {
   type ParsedSaveFile,
 } from './lib/saveCodec'
 import { isSupportedSaveFile } from './lib/fileValidation'
+import { resolveEditorState } from './lib/editorState'
 import './App.css'
 
 type EditModel = {
@@ -33,20 +34,27 @@ function App() {
     () => parsed?.blocks.filter((x) => (x.kind === 0 || x.kind === 1) && x.playState) ?? [],
     [parsed],
   )
+  const editableIndexes = useMemo(
+    () => editableBlocks.map((x) => x.index),
+    [editableBlocks],
+  )
+  const editorState = useMemo(
+    () => resolveEditorState(selectedBlock, editableIndexes),
+    [selectedBlock, editableIndexes],
+  )
 
   useEffect(() => {
-    const target = editableBlocks.find((x) => x.index === selectedBlock) ?? editableBlocks[0]
+    const target = editableBlocks.find((x) => x.index === editorState.editingBlock)
     if (!target?.playState) {
       return
     }
-    setSelectedBlock(target.index)
     setEdit({
       gold: String(target.playState.gold),
       chapterIndex: String(target.playState.chapterIndex),
       chapterTurn: String(target.playState.chapterTurn),
       playerName: target.playState.playerName,
     })
-  }, [editableBlocks, selectedBlock])
+  }, [editableBlocks, editorState.editingBlock])
 
   async function onFileChange(file?: File) {
     if (!file) return
@@ -73,8 +81,12 @@ function App() {
 
   function onApplyEdits() {
     if (!parsed) return
+    if (editorState.editingBlock === null) {
+      setError(t('blockReadOnly'))
+      return
+    }
     try {
-      const next = updatePlayState(parsed, selectedBlock, {
+      const next = updatePlayState(parsed, editorState.editingBlock, {
         gold: Number(edit.gold),
         chapterIndex: Number(edit.chapterIndex),
         chapterTurn: Number(edit.chapterTurn),
@@ -159,24 +171,45 @@ function App() {
 
           <div className="card">
             <h2>{t('slot')} #{selectedBlock}</h2>
+            {editorState.editingBlock === null && <p>{t('blockReadOnly')}</p>}
             <label>
               {t('gold')}
-              <input value={edit.gold} onChange={(e) => setEdit((v) => ({ ...v, gold: e.target.value }))} />
+              <input
+                disabled={editorState.editingBlock === null}
+                value={edit.gold}
+                onChange={(e) => setEdit((v) => ({ ...v, gold: e.target.value }))}
+              />
             </label>
             <label>
               {t('chapter')}
-              <input value={edit.chapterIndex} onChange={(e) => setEdit((v) => ({ ...v, chapterIndex: e.target.value }))} />
+              <input
+                disabled={editorState.editingBlock === null}
+                value={edit.chapterIndex}
+                onChange={(e) => setEdit((v) => ({ ...v, chapterIndex: e.target.value }))}
+              />
             </label>
             <label>
               {t('turn')}
-              <input value={edit.chapterTurn} onChange={(e) => setEdit((v) => ({ ...v, chapterTurn: e.target.value }))} />
+              <input
+                disabled={editorState.editingBlock === null}
+                value={edit.chapterTurn}
+                onChange={(e) => setEdit((v) => ({ ...v, chapterTurn: e.target.value }))}
+              />
             </label>
             <label>
               {t('playerName')}
-              <input value={edit.playerName} onChange={(e) => setEdit((v) => ({ ...v, playerName: e.target.value }))} />
+              <input
+                disabled={editorState.editingBlock === null}
+                value={edit.playerName}
+                onChange={(e) => setEdit((v) => ({ ...v, playerName: e.target.value }))}
+              />
             </label>
             <div className="button-row">
-              <button type="button" onClick={onApplyEdits}>
+              <button
+                type="button"
+                disabled={editorState.editingBlock === null}
+                onClick={onApplyEdits}
+              >
                 {t('apply')}
               </button>
               <button type="button" onClick={onDownload}>
