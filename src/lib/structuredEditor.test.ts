@@ -213,20 +213,47 @@ describe('structuredEditor', () => {
     expect(afterGeneric.blocks[6].checksumValid).toBe(true)
   })
 
+  it('applies single-bit edits without clobbering sibling bits', async () => {
+    const parsed = await parseSaveFile(buildSampleSave())
+    const beforeRaw = getStructuredRows(parsed, 0).find(
+      (row) => row.memberPath === 'units[0].stateFlags.raw',
+    )
+    const bitRow = getStructuredRows(parsed, 0).find(
+      (row) => row.memberPath === 'units[0].stateFlags.bit3',
+    )
+
+    expect(beforeRaw).toBeDefined()
+    expect(bitRow).toBeDefined()
+
+    const next = applyStructuredEdit(parsed, 0, bitRow!.key, '1')
+    const sameByteRaw = getStructuredRows(next, 0).find(
+      (row) => row.memberPath === 'units[0].stateFlags.raw',
+    )
+
+    expect(Number(sameByteRaw!.value) & 0x08).toBe(0x08)
+    expect(Number(sameByteRaw!.value) & ~0x08).toBe(Number(beforeRaw!.value) & ~0x08)
+    expect(next.blocks[0].checksumValid).toBe(true)
+  })
+
   it('rejects invalid structured edits without mutating canonical bytes', async () => {
     const parsed = await parseSaveFile(buildSampleSave())
     const before = parsed.bytes.slice()
     const saveRows = getStructuredRows(parsed, 0)
     const saveSlotRow = saveRows.find((row) => row.labelKey === 'field.playst.saveSlot')
+    const bitRow = saveRows.find((row) => row.memberPath === 'units[0].stateFlags.bit3')
     const genericRow = getStructuredRows(parsed, 6).find((row) => row.offset === 0x00)
     const nameRow = saveRows.find((row) => row.labelKey === 'field.playst.playerName')
 
     expect(saveSlotRow).toBeDefined()
+    expect(bitRow).toBeDefined()
     expect(genericRow).toBeDefined()
     expect(nameRow).toBeDefined()
 
     expect(() => applyStructuredEdit(parsed, 0, saveSlotRow!.key, '300')).toThrow(
       STRUCTURED_EDITOR_ERROR_KEYS.outOfRange,
+    )
+    expect(() => applyStructuredEdit(parsed, 0, bitRow!.key, 'maybe')).toThrow(
+      STRUCTURED_EDITOR_ERROR_KEYS.invalidInteger,
     )
     expect(() => applyStructuredEdit(parsed, 6, genericRow!.key, 'xyz')).toThrow(
       STRUCTURED_EDITOR_ERROR_KEYS.invalidBytes,

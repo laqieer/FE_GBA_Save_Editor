@@ -14,6 +14,8 @@ export interface BlockFieldSchema {
   domain: StructuredDomain
   groupKey: string
   memberPath: string
+  bitfieldPath?: string
+  bitIndices?: readonly number[]
 }
 
 type BlockFieldSchemaInput = Omit<BlockFieldSchema, 'byteLength'> & { byteLength?: number }
@@ -293,14 +295,16 @@ export function buildFe8UnitSchema(): readonly BlockFieldSchema[] {
       memberPath: 'units[0].affiliation',
     }),
     makeField({
-      key: 'unit.0.aiFlags',
+      key: 'unit.0.stateFlags',
       offset: 0x41,
       size: 1,
       type: 'u8',
-      labelKey: 'field.unit.aiFlags',
+      labelKey: 'field.unit.stateFlags',
       domain: 'units',
       groupKey: 'units.0',
-      memberPath: 'units[0].aiFlags',
+      memberPath: 'units[0].stateFlags.raw',
+      bitfieldPath: 'units[0].stateFlags',
+      bitIndices: [0, 1, 2, 3, 4, 5, 6, 7],
     }),
     makeField({
       key: 'unit.0.rescueTarget',

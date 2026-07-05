@@ -6,6 +6,7 @@ export type FieldRow = {
   domain: import('./blockSchema').StructuredDomain
   groupKey: string
   memberPath: string
+  bitIndex?: number
   unitIndex?: number
   offset: number
   size: number
@@ -60,6 +61,10 @@ function toHexString(bytes: Uint8Array): string {
   return Array.from(bytes, (value) => value.toString(16).padStart(2, '0').toUpperCase()).join('')
 }
 
+function createTechnicalLabel(memberPath: string): string {
+  return `field.tech.${memberPath.replace(/[.[\]]+/g, '_').replace(/_+$/, '')}`
+}
+
 function readValue(bytes: Uint8Array, field: BlockFieldSchema): number | string {
   switch (field.type) {
     case 'u8':
@@ -77,6 +82,10 @@ function readValue(bytes: Uint8Array, field: BlockFieldSchema): number | string 
   }
 }
 
+function readBitValue(byte: number, bitIndex: number): number {
+  return (byte >>> bitIndex) & 1
+}
+
 function resolveUnitIndex(field: BlockFieldSchema): number | undefined {
   if (field.domain !== 'units') {
     return undefined
@@ -92,19 +101,39 @@ function resolveUnitIndex(field: BlockFieldSchema): number | undefined {
 }
 
 function buildKnownRows(bytes: Uint8Array, fields: readonly BlockFieldSchema[]): ResolvedFieldRow[] {
-  return fields.map((field) => ({
-    key: field.key,
-    domain: field.domain,
-    groupKey: field.groupKey,
-    memberPath: field.memberPath,
-    unitIndex: resolveUnitIndex(field),
-    offset: field.offset,
-    size: field.byteLength,
-    byteLength: field.byteLength,
-    type: field.type,
-    labelKey: field.labelKey,
-    value: readValue(bytes, field),
-  }))
+  const rows: ResolvedFieldRow[] = []
+  for (const field of fields) {
+    const baseRow: ResolvedFieldRow = {
+      key: field.key,
+      domain: field.domain,
+      groupKey: field.groupKey,
+      memberPath: field.memberPath,
+      unitIndex: resolveUnitIndex(field),
+      offset: field.offset,
+      size: field.byteLength,
+      byteLength: field.byteLength,
+      type: field.type,
+      labelKey: field.labelKey,
+      value: readValue(bytes, field),
+    }
+    rows.push(baseRow)
+
+    if (field.bitIndices?.length) {
+      const currentByte = bytes[field.offset]
+      const bitfieldPath = field.bitfieldPath ?? field.memberPath
+      for (const bitIndex of field.bitIndices) {
+        rows.push({
+          ...baseRow,
+          key: `${field.key}.bit${bitIndex}`,
+          memberPath: `${bitfieldPath}.bit${bitIndex}`,
+          bitIndex,
+          labelKey: createTechnicalLabel(`${bitfieldPath}.bit${bitIndex}`),
+          value: readBitValue(currentByte, bitIndex),
+        })
+      }
+    }
+  }
+  return rows
 }
 
 function buildGenericRows(bytes: Uint8Array, coveredOffsets: Set<number>): ResolvedFieldRow[] {
@@ -216,6 +245,28 @@ function parseBytePatch(row: ResolvedFieldRow, nextValue: string): Uint8Array {
   return patch
 }
 
+function parseBitPatch(
+  row: ResolvedFieldRow,
+  nextValue: string,
+  blockBytes: Uint8Array,
+): Uint8Array {
+  const trimmed = nextValue.trim()
+  if (!/^(0|1|true|false)$/i.test(trimmed)) {
+    throw new Error(STRUCTURED_EDITOR_ERROR_KEYS.invalidInteger)
+  }
+
+  if (row.bitIndex === undefined || row.bitIndex < 0 || row.bitIndex > 7) {
+    throw new Error(STRUCTURED_EDITOR_ERROR_KEYS.invalidRow)
+  }
+
+  const setBit = /^(1|true)$/i.test(trimmed)
+  const currentByte = blockBytes[row.offset]
+  const nextByte = setBit
+    ? currentByte | (1 << row.bitIndex)
+    : currentByte & ~(1 << row.bitIndex)
+  return Uint8Array.from([nextByte])
+}
+
 function parseTextPatch(row: ResolvedFieldRow, nextValue: string): Uint8Array {
   const encoded = new TextEncoder().encode(nextValue)
   if (encoded.length > row.byteLength) {
@@ -240,21 +291,26 @@ export function applyStructuredEdit(
   if (!row) {
     throw new Error(STRUCTURED_EDITOR_ERROR_KEYS.invalidRow)
   }
+  const blockBytes = readBlockBytes(parsed, blockIndex)
 
   let patch: Uint8Array
-  switch (row.type) {
-    case 'u8':
-    case 's8':
-    case 'u16':
-    case 'u32':
-      patch = parseNumericPatch(row, nextValue)
-      break
-    case 'bytes':
-      patch = parseBytePatch(row, nextValue)
-      break
-    case 'text':
-      patch = parseTextPatch(row, nextValue)
-      break
+  if (row.bitIndex !== undefined) {
+    patch = parseBitPatch(row, nextValue, blockBytes)
+  } else {
+    switch (row.type) {
+      case 'u8':
+      case 's8':
+      case 'u16':
+      case 'u32':
+        patch = parseNumericPatch(row, nextValue)
+        break
+      case 'bytes':
+        patch = parseBytePatch(row, nextValue)
+        break
+      case 'text':
+        patch = parseTextPatch(row, nextValue)
+        break
+    }
   }
 
   return updateBlockBytes(parsed, blockIndex, row.offset, patch)
