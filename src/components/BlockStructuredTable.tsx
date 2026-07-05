@@ -5,6 +5,11 @@ import {
   reconcileDraftValues,
 } from '../lib/editorDraftState'
 import type { FieldRow } from '../lib/structuredEditor'
+import {
+  STRUCTURED_DOMAIN_PAGE_SIZE,
+  groupRowsByDomainAndGroup,
+  paginateStructuredRows,
+} from '../lib/structuredTableLayout'
 
 type BlockStructuredTableProps = {
   blockKey: string
@@ -40,6 +45,11 @@ export function BlockStructuredTable({
   onApplyEdit,
 }: BlockStructuredTableProps) {
   const { t } = useTranslation()
+  const groupedRows = useMemo(() => groupRowsByDomainAndGroup(rows), [rows])
+  const groups = useMemo(
+    () => groupedRows.flatMap((section) => section.groups),
+    [groupedRows],
+  )
   const canonicalValues = useMemo(
     () =>
       Object.fromEntries(
@@ -56,6 +66,9 @@ export function BlockStructuredTable({
     drafts: canonicalValues,
     errors: {},
   })
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
+  const [domainPages, setDomainPages] = useState<Record<string, number>>({})
+  const previousLayoutBlockKey = useRef(blockKey)
 
   useEffect(() => {
     setState((current) => {
@@ -80,6 +93,34 @@ export function BlockStructuredTable({
       return nextState
     })
   }, [blockKey, canonicalValues])
+
+  useEffect(() => {
+    const preserveGroupState = previousLayoutBlockKey.current === blockKey
+
+    setCollapsedGroups((current) => {
+      const next: Record<string, boolean> = {}
+      for (const group of groups) {
+        next[group.id] = preserveGroupState
+          ? current[group.id] ?? group.defaultCollapsed
+          : group.defaultCollapsed
+      }
+      return next
+    })
+    setDomainPages((current) => {
+      const next: Record<string, number> = {}
+      for (const section of groupedRows) {
+        const currentPage = preserveGroupState ? current[section.id] ?? 0 : 0
+        const lastPage = Math.max(
+          0,
+          Math.ceil(section.rows.length / STRUCTURED_DOMAIN_PAGE_SIZE) - 1,
+        )
+        next[section.id] = Math.min(Math.max(0, currentPage), lastPage)
+      }
+      return next
+    })
+
+    previousLayoutBlockKey.current = blockKey
+  }, [blockKey, groupedRows, groups])
 
   function clearError(rowKey: string) {
     setState((current) => {
@@ -111,69 +152,195 @@ export function BlockStructuredTable({
     }
   }
 
+  function renderRow(row: FieldRow) {
+    const fieldLabel = t(row.labelKey, { defaultValue: row.labelKey })
+    const error = state.errors[row.key]
+    const draftValue = state.drafts[row.key] ?? canonicalValues[row.key] ?? ''
+    const isDirty = draftValue !== canonicalValues[row.key]
+
+    return (
+      <tr key={row.key}>
+        <td className="mono">{formatOffset(row.offset)}</td>
+        <td>{fieldLabel}</td>
+        <td className="mono">{formatTypeLabel(row.type)}</td>
+        <td>{row.size}</td>
+        <td>
+          <div className="field-input-group">
+            <input
+              className={`field-input ${error ? 'input-error' : ''}`}
+              spellCheck={false}
+              value={draftValue}
+              onChange={(event) => {
+                const nextValue = event.target.value
+                setState((current) => ({
+                  ...current,
+                  drafts: {
+                    ...current.drafts,
+                    [row.key]: nextValue,
+                  },
+                }))
+                clearError(row.key)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  applyRow(row.key)
+                }
+              }}
+            />
+            {error && <p className="inline-error">{error}</p>}
+          </div>
+        </td>
+        <td className="row-actions">
+          <button type="button" onClick={() => applyRow(row.key)}>
+            {isDirty ? t('apply') : t('reapply')}
+          </button>
+        </td>
+      </tr>
+    )
+  }
+
   return (
-    <div className="table-wrapper">
-      <table className="editor-table">
-        <thead>
-          <tr>
-            <th>{t('offset')}</th>
-            <th>{t('field')}</th>
-            <th>{t('type')}</th>
-            <th>{t('size')}</th>
-            <th>{t('value')}</th>
-            <th>{t('actions')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const fieldLabel = t(row.labelKey, { defaultValue: row.labelKey })
-            const error = state.errors[row.key]
-            const draftValue = state.drafts[row.key] ?? canonicalValues[row.key] ?? ''
-            const isDirty = draftValue !== canonicalValues[row.key]
+    <div className="structured-groups">
+      {groupedRows.map((section) => (
+        <section className="structured-domain-section" key={section.id}>
+          {(() => {
+            const page = paginateStructuredRows(
+              section.rows,
+              domainPages[section.id] ?? 0,
+            )
+            const visibleGroups =
+              groupRowsByDomainAndGroup(page.rows).find(
+                (candidate) => candidate.id === section.id,
+              )?.groups ?? []
 
             return (
-              <tr key={row.key}>
-                <td className="mono">{formatOffset(row.offset)}</td>
-                <td>{fieldLabel}</td>
-                <td className="mono">{formatTypeLabel(row.type)}</td>
-                <td>{row.size}</td>
-                <td>
-                  <div className="field-input-group">
-                    <input
-                      className={`field-input ${error ? 'input-error' : ''}`}
-                      spellCheck={false}
-                      value={draftValue}
-                      onChange={(event) => {
-                        const nextValue = event.target.value
-                        setState((current) => ({
-                          ...current,
-                          drafts: {
-                            ...current.drafts,
-                            [row.key]: nextValue,
-                          },
-                        }))
-                        clearError(row.key)
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.preventDefault()
-                          applyRow(row.key)
-                        }
-                      }}
-                    />
-                    {error && <p className="inline-error">{error}</p>}
+              <>
+                <div className="structured-domain-header">
+                  <div className="structured-domain-copy">
+                    <h3 className="structured-domain-title">
+                      {t(section.title.labelKey, {
+                        ...section.title.options,
+                        defaultValue: section.title.defaultLabel,
+                      })}
+                    </h3>
+                    <p className="structured-domain-meta">
+                      {t('structuredEditor.fieldCount', {
+                        count: section.rows.length,
+                        defaultValue: `${section.rows.length} fields`,
+                      })}
+                    </p>
                   </div>
-                </td>
-                <td className="row-actions">
-                  <button type="button" onClick={() => applyRow(row.key)}>
-                    {isDirty ? t('apply') : t('reapply')}
-                  </button>
-                </td>
-              </tr>
+
+                  {page.totalPages > 1 && (
+                    <div className="structured-group-controls">
+                      <button
+                        type="button"
+                        disabled={page.currentPage === 0}
+                        onClick={() =>
+                          setDomainPages((current) => ({
+                            ...current,
+                            [section.id]: Math.max(0, page.currentPage - 1),
+                          }))
+                        }
+                      >
+                        {t('previous')}
+                      </button>
+                      <span className="structured-group-page-status">
+                        {t('structuredEditor.pageStatus', {
+                          current: page.currentPage + 1,
+                          total: page.totalPages,
+                          defaultValue: `Page ${page.currentPage + 1} / ${page.totalPages}`,
+                        })}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={page.currentPage >= page.totalPages - 1}
+                        onClick={() =>
+                          setDomainPages((current) => ({
+                            ...current,
+                            [section.id]: Math.min(
+                              page.totalPages - 1,
+                              page.currentPage + 1,
+                            ),
+                          }))
+                        }
+                      >
+                        {t('next')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {visibleGroups.map((group) => {
+                  const fullGroup =
+                    section.groups.find((candidate) => candidate.id === group.id) ?? group
+                  const isCollapsed =
+                    collapsedGroups[group.id] ?? fullGroup.defaultCollapsed
+
+                  return (
+                    <section className="structured-group" key={group.id}>
+                      <div className="structured-group-header">
+                        <div className="structured-group-copy">
+                          <h4 className="structured-group-title">
+                            {t(fullGroup.title.labelKey, {
+                              ...fullGroup.title.options,
+                              defaultValue: fullGroup.title.defaultLabel,
+                            })}
+                          </h4>
+                          <p className="structured-group-meta">
+                            {t('structuredEditor.fieldCount', {
+                              count: fullGroup.rows.length,
+                              defaultValue: `${fullGroup.rows.length} fields`,
+                            })}
+                          </p>
+                        </div>
+
+                        <div className="structured-group-controls">
+                          <button
+                            type="button"
+                            aria-expanded={!isCollapsed}
+                            onClick={() =>
+                              setCollapsedGroups((current) => ({
+                                ...current,
+                                [group.id]: !isCollapsed,
+                              }))
+                            }
+                          >
+                            {isCollapsed
+                              ? t('structuredEditor.expandGroup')
+                              : t('structuredEditor.collapseGroup')}
+                          </button>
+                        </div>
+                      </div>
+
+                      {!isCollapsed && (
+                        <div className="structured-group-body">
+                          <div className="table-wrapper">
+                            <table className="editor-table">
+                              <thead>
+                                <tr>
+                                  <th>{t('offset')}</th>
+                                  <th>{t('field')}</th>
+                                  <th>{t('type')}</th>
+                                  <th>{t('size')}</th>
+                                  <th>{t('value')}</th>
+                                  <th>{t('actions')}</th>
+                                </tr>
+                              </thead>
+                              <tbody>{group.rows.map(renderRow)}</tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </section>
+                  )
+                })}
+              </>
             )
-          })}
-        </tbody>
-      </table>
+          })()}
+        </section>
+      ))}
     </div>
   )
 }

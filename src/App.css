@@ -144,6 +144,83 @@ button:disabled {
   border-radius: 0.75rem;
 }
 
+.structured-groups,
+.structured-domain-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.structured-domain-title,
+.structured-domain-meta,
+.structured-group-title,
+.structured-group-meta {
+  margin: 0;
+}
+
+.structured-domain-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.structured-domain-copy,
+.structured-group-copy,
+.structured-group-controls {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.structured-domain-copy {
+  flex-direction: column;
+}
+
+.structured-domain-title {
+  font-size: 1rem;
+}
+
+.structured-group {
+  border: 1px solid #e6ebf4;
+  border-radius: 0.75rem;
+  background: #fbfcff;
+}
+
+.structured-group-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.structured-group-copy {
+  flex-direction: column;
+}
+
+.structured-group-controls {
+  align-items: center;
+}
+
+.structured-domain-meta,
+.structured-group-meta,
+.structured-group-page-status {
+  color: #59657c;
+  font-size: 0.85rem;
+}
+
+.structured-group-body {
+  padding: 0 0.75rem 0.75rem;
+}
+
+.structured-group-body .table-wrapper {
+  border: 0;
+  border-radius: 0;
+}
+
 .hex-toolbar,
 .hex-pagination {
   display: flex;
