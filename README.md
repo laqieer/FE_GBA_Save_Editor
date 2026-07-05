@@ -7,11 +7,10 @@ Browser-based save editor for **Fire Emblem 6 / 7 / 8** (`.sav`) with automatic 
 - Load `.sav` files directly in browser (no server upload)
 - Parse global metadata + 7 save block headers
 - Validate metadata checksum and block checksums
-- Edit key play-state fields for game/suspend blocks
-  - Gold
-  - Chapter index
-  - Turn number
-  - Player/Tactician name
+- Edit every present save block (`#0`-`#6`)
+- Switch between synchronized structured and hex editors for each block
+- Known FE8 PlaySt fields keep labeled structured rows, while uncovered regions remain editable as raw bytes
+- Recompute block checksums after every edit and repair the global checksum on export
 - Export patched `.sav` with updated checksums
 - Responsive UI for desktop/mobile
 - i18n: English, Japanese, Chinese
