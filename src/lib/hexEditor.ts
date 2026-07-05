@@ -7,6 +7,7 @@ export type HexRow = {
 }
 
 const DEFAULT_BYTES_PER_ROW = 16
+export const DEFAULT_HEX_PAGE_SIZE = 16
 const HEX_PAIR = /^[0-9a-fA-F]{2}$/
 
 function toHexPair(value: number): string {
@@ -34,6 +35,29 @@ export function toHexRows(blockBytes: Uint8Array, bytesPerRow = DEFAULT_BYTES_PE
   }
 
   return rows
+}
+
+function validatePageSize(pageSize: number) {
+  if (!Number.isInteger(pageSize) || pageSize <= 0) {
+    throw new Error('Invalid page size')
+  }
+}
+
+export function getHexPageCount(totalRows: number, pageSize = DEFAULT_HEX_PAGE_SIZE): number {
+  validatePageSize(pageSize)
+  return Math.max(1, Math.ceil(totalRows / pageSize))
+}
+
+export function getHexPageRows(
+  rows: readonly HexRow[],
+  pageIndex: number,
+  pageSize = DEFAULT_HEX_PAGE_SIZE,
+): HexRow[] {
+  validatePageSize(pageSize)
+  const maxPageIndex = getHexPageCount(rows.length, pageSize) - 1
+  const clampedPageIndex = Math.min(Math.max(pageIndex, 0), maxPageIndex)
+  const start = clampedPageIndex * pageSize
+  return rows.slice(start, start + pageSize)
 }
 
 export function applyHexEdit(

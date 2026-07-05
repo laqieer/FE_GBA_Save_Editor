@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { parseSaveFile, readBlockBytes } from './saveCodec'
-import { applyHexEdit, toHexRows } from './hexEditor'
+import {
+  DEFAULT_HEX_PAGE_SIZE,
+  applyHexEdit,
+  getHexPageCount,
+  getHexPageRows,
+  toHexRows,
+} from './hexEditor'
 
 function writeU16(buf: Uint8Array, offset: number, value: number) {
   buf[offset] = value & 0xff
@@ -83,6 +89,22 @@ describe('hexEditor', () => {
 
   it('rejects invalid bytes-per-row values', () => {
     expect(() => toHexRows(Uint8Array.from([0x41, 0x42]), 1.5)).toThrow('Invalid bytes per row')
+  })
+
+  it('pages hex rows into bounded editable windows', () => {
+    const rows = toHexRows(
+      Uint8Array.from(Array.from({ length: DEFAULT_HEX_PAGE_SIZE * 20 }, (_, index) => index & 0xff)),
+    )
+
+    expect(getHexPageCount(rows.length)).toBe(2)
+    expect(getHexPageRows(rows, 0).length).toBe(DEFAULT_HEX_PAGE_SIZE)
+    expect(getHexPageRows(rows, 1).map((row) => row.rowOffset)).toEqual([0x0100, 0x0110, 0x0120, 0x0130])
+    expect(getHexPageRows(rows, 99).map((row) => row.rowOffset)).toEqual([0x0100, 0x0110, 0x0120, 0x0130])
+  })
+
+  it('rejects invalid hex page sizes', () => {
+    expect(() => getHexPageCount(10, 0)).toThrow('Invalid page size')
+    expect(() => getHexPageRows(toHexRows(Uint8Array.from([0x41, 0x42])), 0, 0)).toThrow('Invalid page size')
   })
 
   it('applies hex edits across every block while preserving valid checksums', async () => {

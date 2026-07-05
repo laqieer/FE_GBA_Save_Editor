@@ -144,6 +144,19 @@ button:disabled {
   border-radius: 0.75rem;
 }
 
+.hex-toolbar,
+.hex-pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.hex-toolbar {
+  justify-content: space-between;
+  padding: 0.75rem 0.75rem 0;
+}
+
 .editor-table {
   width: 100%;
   min-width: 720px;

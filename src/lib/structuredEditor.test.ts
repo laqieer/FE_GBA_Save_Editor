@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseSaveFile, readBlockBytes } from './saveCodec'
 import {
+  GENERIC_ROW_CHUNK_SIZE,
   STRUCTURED_EDITOR_ERROR_KEYS,
   applyStructuredEdit,
   getStructuredRows,
@@ -112,17 +113,21 @@ describe('structuredEditor', () => {
     const suspendRows = getStructuredRows(parsed, 1)
     const archiveRows = getStructuredRows(parsed, 6)
     const playerNameRow = saveRows.find((row) => row.labelKey === 'field.playst.playerName')
+    const genericSaveRows = saveRows.filter((row) => row.type === 'bytes')
 
     expect(saveRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(true)
     expect(saveRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(true)
     expect(saveRows.some((row) => row.type === 'bytes')).toBe(true)
     expect(playerNameRow?.size).toBe(0x0b)
+    expect(genericSaveRows.some((row) => row.labelKey === 'field.unknown.bytes')).toBe(true)
+    expect(genericSaveRows.some((row) => row.size === GENERIC_ROW_CHUNK_SIZE)).toBe(true)
 
     expect(suspendRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(true)
     expect(suspendRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(true)
 
-    expect(archiveRows.length).toBe(parsed.blocks[6].size)
+    expect(archiveRows.length).toBe(parsed.blocks[6].size / GENERIC_ROW_CHUNK_SIZE)
     expect(archiveRows.every((row) => row.type === 'bytes')).toBe(true)
+    expect(archiveRows.every((row) => row.size === GENERIC_ROW_CHUNK_SIZE)).toBe(true)
   })
 
   it('falls back to generic rows for FE6, FE7, and UNKNOWN save blocks', async () => {
@@ -133,9 +138,10 @@ describe('structuredEditor', () => {
       expect(parsed.gameCode).toBe(gameCode)
       expect(saveRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(false)
       expect(saveRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(false)
-      expect(saveRows.length).toBe(parsed.blocks[0].size)
+      expect(saveRows.length).toBe(parsed.blocks[0].size / GENERIC_ROW_CHUNK_SIZE)
       expect(saveRows.every((row) => row.type === 'bytes')).toBe(true)
-      expect(saveRows.some((row) => row.labelKey === 'field.unknown.byte')).toBe(true)
+      expect(saveRows.every((row) => row.size === GENERIC_ROW_CHUNK_SIZE)).toBe(true)
+      expect(saveRows.some((row) => row.labelKey === 'field.unknown.bytes')).toBe(true)
     }
   })
 
@@ -152,7 +158,8 @@ describe('structuredEditor', () => {
 
     const afterGold = applyStructuredEdit(parsed, 0, goldRow!.key, '77777')
     const afterName = applyStructuredEdit(afterGold, 0, nameRow!.key, 'Seth')
-    const afterGeneric = applyStructuredEdit(afterName, 6, genericRow!.key, 'AB')
+    const nextGenericValue = `AB${String(genericRow!.value).slice(2)}`
+    const afterGeneric = applyStructuredEdit(afterName, 6, genericRow!.key, nextGenericValue)
 
     expect(getStructuredRows(afterGeneric, 0).find((row) => row.key === goldRow!.key)?.value).toBe(77777)
     expect(getStructuredRows(afterGeneric, 0).find((row) => row.key === nameRow!.key)?.value).toBe('Seth')
@@ -166,7 +173,7 @@ describe('structuredEditor', () => {
     const before = parsed.bytes.slice()
     const saveRows = getStructuredRows(parsed, 0)
     const saveSlotRow = saveRows.find((row) => row.labelKey === 'field.playst.saveSlot')
-    const genericRow = getStructuredRows(parsed, 6).find((row) => row.offset === 0x05)
+    const genericRow = getStructuredRows(parsed, 6).find((row) => row.offset === 0x00)
     const nameRow = saveRows.find((row) => row.labelKey === 'field.playst.playerName')
 
     expect(saveSlotRow).toBeDefined()

@@ -87,3 +87,11 @@ Final fresh verification before commit:
 - `npm run build`
 
 Both final commands passed successfully.
+
+## Task 4 Reviewer Fix Follow-up (2026-07-05)
+- Structured fallback rows now chunk uncovered generic ranges into 16-byte editable HEX rows instead of one row per byte, while preserving byte coverage through canonical `applyStructuredEdit` patching.
+- Hex editor now pages 16 rows at a time, so large 0x800-byte blocks only render a bounded editable window while still allowing byte edits across the full block via page navigation.
+- Added regression coverage for chunked generic rows and hex paging helpers; invalid structured/hex edits remain non-mutating.
+- Command outcomes:
+  - `npm run test:run -- src/lib/structuredEditor.test.ts src/lib/editorDraftState.test.ts src/lib/hexEditor.test.ts src/lib/blockCodec.test.ts src/lib/saveCodec.test.ts src/lib/editorState.test.ts` ✅ Passed (6 files, 26 tests)
+  - `npm run build` ✅ Passed

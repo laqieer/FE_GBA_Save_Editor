@@ -14,6 +14,8 @@ type ResolvedFieldRow = FieldRow & {
   byteLength: number
 }
 
+export const GENERIC_ROW_CHUNK_SIZE = 16
+
 export const STRUCTURED_EDITOR_ERROR_KEYS = {
   invalidRow: 'structuredEditor.invalidRow',
   invalidInteger: 'structuredEditor.invalidInteger',
@@ -85,19 +87,32 @@ function buildKnownRows(bytes: Uint8Array, fields: readonly BlockFieldSchema[]):
 
 function buildGenericRows(bytes: Uint8Array, coveredOffsets: Set<number>): ResolvedFieldRow[] {
   const rows: ResolvedFieldRow[] = []
-  for (let offset = 0; offset < bytes.length; offset += 1) {
+  for (let offset = 0; offset < bytes.length; ) {
     if (coveredOffsets.has(offset)) {
+      offset += 1
       continue
     }
+
+    let chunkEnd = offset
+    while (
+      chunkEnd < bytes.length &&
+      !coveredOffsets.has(chunkEnd) &&
+      chunkEnd - offset < GENERIC_ROW_CHUNK_SIZE
+    ) {
+      chunkEnd += 1
+    }
+
+    const byteLength = chunkEnd - offset
     rows.push({
-      key: `byte.${offset.toString(16).padStart(4, '0')}`,
+      key: `bytes.${offset.toString(16).padStart(4, '0')}`,
       offset,
-      size: 1,
-      byteLength: 1,
+      size: byteLength,
+      byteLength,
       type: 'bytes',
-      labelKey: 'field.unknown.byte',
-      value: toHexString(bytes.slice(offset, offset + 1)),
+      labelKey: byteLength === 1 ? 'field.unknown.byte' : 'field.unknown.bytes',
+      value: toHexString(bytes.slice(offset, chunkEnd)),
     })
+    offset = chunkEnd
   }
   return rows
 }

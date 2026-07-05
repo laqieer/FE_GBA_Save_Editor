@@ -4,7 +4,7 @@ import {
   reconcileDraftErrors,
   reconcileDraftValues,
 } from '../lib/editorDraftState'
-import { toHexRows } from '../lib/hexEditor'
+import { getHexPageCount, getHexPageRows, toHexRows } from '../lib/hexEditor'
 
 type BlockHexEditorProps = {
   blockKey: number
@@ -33,6 +33,7 @@ export function BlockHexEditor({
 }: BlockHexEditorProps) {
   const { t } = useTranslation()
   const rows = useMemo(() => toHexRows(blockBytes), [blockBytes])
+  const pageCount = useMemo(() => getHexPageCount(rows.length), [rows.length])
   const canonicalValues = useMemo(() => {
     const nextValues: Record<number, string> = {}
     for (const row of rows) {
@@ -51,6 +52,7 @@ export function BlockHexEditor({
     drafts: canonicalValues,
     errors: {},
   })
+  const [pageIndex, setPageIndex] = useState(0)
 
   useEffect(() => {
     setState((current) => {
@@ -75,6 +77,22 @@ export function BlockHexEditor({
       return nextState
     })
   }, [blockKey, canonicalValues])
+
+  useEffect(() => {
+    setPageIndex(0)
+  }, [blockKey])
+
+  useEffect(() => {
+    setPageIndex((current) => Math.min(current, pageCount - 1))
+  }, [pageCount])
+
+  const pageRows = useMemo(() => getHexPageRows(rows, pageIndex), [pageIndex, rows])
+  const pageStartOffset = pageRows[0]?.rowOffset ?? 0
+  const lastPageRow = pageRows[pageRows.length - 1]
+  const pageEndOffset =
+    lastPageRow == null
+      ? 0
+      : lastPageRow.rowOffset + lastPageRow.hex.length - 1
 
   function clearError(offset: number) {
     setState((current) => {
@@ -110,6 +128,31 @@ export function BlockHexEditor({
 
   return (
     <div className="table-wrapper">
+      <div className="hex-toolbar">
+        <div className="hex-pagination">
+          <button
+            type="button"
+            onClick={() => setPageIndex((current) => Math.max(current - 1, 0))}
+            disabled={pageIndex === 0}
+          >
+            {t('previous')}
+          </button>
+          <span>{t('hexEditor.pageStatus', { current: pageIndex + 1, total: pageCount })}</span>
+          <button
+            type="button"
+            onClick={() => setPageIndex((current) => Math.min(current + 1, pageCount - 1))}
+            disabled={pageIndex >= pageCount - 1}
+          >
+            {t('next')}
+          </button>
+        </div>
+        <p className="muted mono">
+          {t('hexEditor.byteRange', {
+            start: formatOffset(pageStartOffset),
+            end: formatOffset(pageEndOffset),
+          })}
+        </p>
+      </div>
       <table className="editor-table">
         <thead>
           <tr>
@@ -119,7 +162,7 @@ export function BlockHexEditor({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
+          {pageRows.map((row) => {
             const rowErrors = row.hex.flatMap((_, columnIndex) => {
               const byteOffset = row.rowOffset + columnIndex
               const message = state.errors[byteOffset]
