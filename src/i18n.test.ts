@@ -8,6 +8,14 @@ describe('i18n', () => {
     expect(i18n.getResourceBundle('zh', 'translation').noEditableBlock).toBe('未找到可编辑的区块。')
   })
 
+  it('contains localization keys for structured domains and technical labels', () => {
+    const bundle = i18n.getResourceBundle('en', 'translation') as Record<string, any>
+    expect(bundle.structuredDomainUnits).toBeTruthy()
+    expect(bundle.structuredDomainInventory).toBeTruthy()
+    expect(bundle.structuredDomainProgressFlags).toBeTruthy()
+    expect(bundle.technicalFieldLabel).toBeTruthy()
+  })
+
   it('includes full-block editor labels and validation errors in every locale', () => {
     const requiredKeys = [
       'blockEditor',

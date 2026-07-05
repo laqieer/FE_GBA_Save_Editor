@@ -9,7 +9,7 @@ Browser-based save editor for **Fire Emblem 6 / 7 / 8** (`.sav`) with automatic 
 - Validate metadata checksum and block checksums
 - Edit every present save block (`#0`-`#6`)
 - Switch between synchronized structured and hex editors for each block
-- Known FE8 PlaySt fields keep labeled structured rows, while uncovered regions remain editable as raw bytes
+- Known FE6/FE7/FE8 structured fields provide meaningful labeled rows; FE6/FE7 unnamed members fall back to deterministic technical labels while uncovered regions remain editable as raw bytes
 - Recompute block checksums after every edit and repair the global checksum on export
 - Export patched `.sav` with updated checksums
 - Responsive UI for desktop/mobile
