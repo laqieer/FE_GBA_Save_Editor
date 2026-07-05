@@ -77,6 +77,14 @@ describe('blockCodec', () => {
     expect(readBlockBytes(changed, 6).slice(0, 0x10)).toEqual(original.slice(0, 0x10))
   })
 
+  it('updates bytes at the unit schema offset and keeps checksum valid', async () => {
+    const parsed = await parseSaveFile(buildSampleSave())
+    const changed = updateBlockBytes(parsed, 6, 0x32, Uint8Array.from([0x14]))
+
+    expect(readBlockBytes(changed, 6)[0x32]).toBe(0x14)
+    expect(changed.blocks[6].checksumValid).toBe(true)
+  })
+
   it('rejects absent blocks with zero magic', async () => {
     const parsed = await parseSaveFile(buildSampleSave({ magic32: 0 }))
 

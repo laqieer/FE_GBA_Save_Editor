@@ -113,7 +113,7 @@ describe('structuredEditor', () => {
     expect(row).toHaveProperty('groupKey')
     expect(row).toHaveProperty('memberPath')
   })
-  it('returns known PlaySt rows for FE8 save and suspend blocks plus generic rows for unknown regions', async () => {
+  it('returns FE8 unit, inventory, and progress rows for save and suspend blocks', async () => {
     const parsed = await parseSaveFile(buildSampleSave())
 
     const saveRows = getStructuredRows(parsed, 0)
@@ -121,9 +121,14 @@ describe('structuredEditor', () => {
     const archiveRows = getStructuredRows(parsed, 6)
     const playerNameRow = saveRows.find((row) => row.labelKey === 'field.playst.playerName')
     const genericSaveRows = saveRows.filter((row) => row.type === 'bytes')
+    const unitLevelRow = saveRows.find((row) => row.memberPath === 'units[0].level')
 
     expect(saveRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(true)
     expect(saveRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(true)
+    expect(saveRows.some((row) => row.domain === 'units')).toBe(true)
+    expect(saveRows.some((row) => row.domain === 'inventory')).toBe(true)
+    expect(saveRows.some((row) => row.domain === 'progressFlags')).toBe(true)
+    expect(unitLevelRow?.groupKey).toBe('units.0')
     expect(saveRows.some((row) => row.type === 'bytes')).toBe(true)
     expect(playerNameRow?.size).toBe(0x0b)
     expect(genericSaveRows.some((row) => row.labelKey === 'field.unknown.bytes')).toBe(true)
@@ -131,6 +136,9 @@ describe('structuredEditor', () => {
 
     expect(suspendRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(true)
     expect(suspendRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(true)
+    expect(suspendRows.some((row) => row.domain === 'units')).toBe(true)
+    expect(suspendRows.some((row) => row.domain === 'inventory')).toBe(true)
+    expect(suspendRows.some((row) => row.domain === 'progressFlags')).toBe(true)
 
     expect(archiveRows.length).toBe(parsed.blocks[6].size / GENERIC_ROW_CHUNK_SIZE)
     expect(archiveRows.every((row) => row.type === 'bytes')).toBe(true)
@@ -157,19 +165,23 @@ describe('structuredEditor', () => {
     const saveRows = getStructuredRows(parsed, 0)
     const goldRow = saveRows.find((row) => row.labelKey === 'field.playst.gold')
     const nameRow = saveRows.find((row) => row.labelKey === 'field.playst.playerName')
+    const unitLevelRow = saveRows.find((row) => row.memberPath === 'units[0].level')
     const genericRow = getStructuredRows(parsed, 6).find((row) => row.offset === 0x10)
 
     expect(goldRow).toBeDefined()
     expect(nameRow).toBeDefined()
+    expect(unitLevelRow).toBeDefined()
     expect(genericRow).toBeDefined()
 
     const afterGold = applyStructuredEdit(parsed, 0, goldRow!.key, '77777')
     const afterName = applyStructuredEdit(afterGold, 0, nameRow!.key, 'Seth')
+    const afterUnitLevel = applyStructuredEdit(afterName, 0, unitLevelRow!.key, '20')
     const nextGenericValue = `AB${String(genericRow!.value).slice(2)}`
-    const afterGeneric = applyStructuredEdit(afterName, 6, genericRow!.key, nextGenericValue)
+    const afterGeneric = applyStructuredEdit(afterUnitLevel, 6, genericRow!.key, nextGenericValue)
 
     expect(getStructuredRows(afterGeneric, 0).find((row) => row.key === goldRow!.key)?.value).toBe(77777)
     expect(getStructuredRows(afterGeneric, 0).find((row) => row.key === nameRow!.key)?.value).toBe('Seth')
+    expect(getStructuredRows(afterGeneric, 0).find((row) => row.key === unitLevelRow!.key)?.value).toBe(20)
     expect(readBlockBytes(afterGeneric, 6)[0x10]).toBe(0xab)
     expect(afterGeneric.blocks[0].checksumValid).toBe(true)
     expect(afterGeneric.blocks[6].checksumValid).toBe(true)
