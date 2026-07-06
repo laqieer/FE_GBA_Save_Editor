@@ -247,12 +247,19 @@ export function normalizeSaveBytes(fileName: string, bytes: Uint8Array): Uint8Ar
   return bytes
 }
 
-function parsePlayState(bytes: Uint8Array, base: number, size: number): PlayState | undefined {
-  if (size < 0x4b) {
+function parsePlayState(
+  bytes: Uint8Array,
+  base: number,
+  size: number,
+  gameCode: GameCode,
+): PlayState | undefined {
+  const minimumSize = gameCode === 'FE6' ? 0x1c : 0x2b
+  if (size < minimumSize) {
     return undefined
   }
 
   const p = base + PLAYST_OFFSET
+  const hasExtendedPlaySt = gameCode !== 'FE6'
   return {
     gold: readU32(bytes, p + 0x08),
     saveSlot: bytes[p + 0x0c],
@@ -260,8 +267,8 @@ function parsePlayState(bytes: Uint8Array, base: number, size: number): PlayStat
     chapterTurn: readU16(bytes, p + 0x10),
     chapterStateBits: bytes[p + 0x14],
     playthroughId: bytes[p + 0x18],
-    chapterMode: bytes[p + 0x1b],
-    playerName: readFixedString(bytes, p + 0x20, 0x0b),
+    chapterMode: hasExtendedPlaySt ? bytes[p + 0x1b] : 0,
+    playerName: hasExtendedPlaySt ? readFixedString(bytes, p + 0x20, 0x0b) : '',
   }
 }
 
@@ -301,7 +308,7 @@ function parseFromBytes(fileName: string, bytes: Uint8Array): ParsedSaveFile {
       checksumComputed = computeChecksum32(body)
       checksumValid = checksumComputed === checksum32
       if (kind === 0 || kind === 1) {
-        playState = parsePlayState(bytes, offset, size)
+        playState = parsePlayState(bytes, offset, size, gameCode)
       }
     }
 

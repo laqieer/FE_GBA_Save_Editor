@@ -30,8 +30,12 @@ type PackedBitFieldSpec = Readonly<{
 }>
 
 type UnitLayout = Readonly<{
+  playStSize: number
+  playStateFields: readonly BlockFieldSchema[]
   unitCount: number
   hasGmUnitBeforeSupply: boolean
+  convoyItemCount: number
+  convoyEncoding: 'u16Packed' | 'split'
   packedFields: readonly PackedBitFieldSpec[]
   characterIdField:
     | { kind: 'bit'; labelKey: string; memberPath: string; bitLength: number }
@@ -40,9 +44,7 @@ type UnitLayout = Readonly<{
   supportOffset: number
 }>
 
-const PLAYST_SIZE = 0x4c
 const PACKED_UNIT_SIZE = 0x24
-const CONVOY_ITEM_COUNT = 100
 
 function makeField(field: BlockFieldSchemaInput): BlockFieldSchema {
   return {
@@ -70,7 +72,7 @@ function makeBitField(
   })
 }
 
-export const PLAYST_FIELD_SCHEMA: readonly BlockFieldSchema[] = [
+export const FE6_PLAYST_FIELD_SCHEMA: readonly BlockFieldSchema[] = [
   makeField({
     key: 'playst.gold',
     offset: 0x08,
@@ -131,6 +133,10 @@ export const PLAYST_FIELD_SCHEMA: readonly BlockFieldSchema[] = [
     groupKey: 'playst',
     memberPath: 'playthroughId',
   }),
+] as const
+
+export const FE7_FE8_PLAYST_FIELD_SCHEMA: readonly BlockFieldSchema[] = [
+  ...FE6_PLAYST_FIELD_SCHEMA,
   makeField({
     key: 'playst.chapterMode',
     offset: 0x1b,
@@ -191,8 +197,12 @@ const FE8_PACKED_FIELDS: readonly PackedBitFieldSpec[] = [
 ] as const
 
 const FE6_LAYOUT: UnitLayout = {
+  playStSize: 0x20,
+  playStateFields: FE6_PLAYST_FIELD_SCHEMA,
   unitCount: 52,
   hasGmUnitBeforeSupply: false,
+  convoyItemCount: 100,
+  convoyEncoding: 'u16Packed',
   packedFields: FE6_FE7_PACKED_FIELDS,
   characterIdField: { kind: 'bit', labelKey: 'field.unit.characterId', memberPath: 'characterId', bitLength: 7 },
   weaponRankOffset: 0x16,
@@ -200,8 +210,12 @@ const FE6_LAYOUT: UnitLayout = {
 }
 
 const FE7_LAYOUT: UnitLayout = {
+  playStSize: 0x4c,
+  playStateFields: FE7_FE8_PLAYST_FIELD_SCHEMA,
   unitCount: 52,
   hasGmUnitBeforeSupply: false,
+  convoyItemCount: 100,
+  convoyEncoding: 'u16Packed',
   packedFields: FE6_FE7_PACKED_FIELDS,
   characterIdField: { kind: 'bit', labelKey: 'field.unit.characterId', memberPath: 'characterId', bitLength: 7 },
   weaponRankOffset: 0x16,
@@ -209,8 +223,12 @@ const FE7_LAYOUT: UnitLayout = {
 }
 
 const FE8_LAYOUT: UnitLayout = {
+  playStSize: 0x4c,
+  playStateFields: FE7_FE8_PLAYST_FIELD_SCHEMA,
   unitCount: 51,
   hasGmUnitBeforeSupply: true,
+  convoyItemCount: 0x58,
+  convoyEncoding: 'u16Packed',
   packedFields: FE8_PACKED_FIELDS,
   characterIdField: { kind: 'byte', labelKey: 'field.unit.characterId', memberPath: 'characterId', byteOffset: 0x14 },
   weaponRankOffset: 0x15,
@@ -219,11 +237,11 @@ const FE8_LAYOUT: UnitLayout = {
 
 function getSupplyIdBase(layout: UnitLayout): number {
   const gmUnitBytes = layout.hasGmUnitBeforeSupply ? PACKED_UNIT_SIZE : 0
-  return PLAYST_SIZE + layout.unitCount * PACKED_UNIT_SIZE + gmUnitBytes
+  return layout.playStSize + layout.unitCount * PACKED_UNIT_SIZE + gmUnitBytes
 }
 
 function buildPackedUnitSchema(unitIndex: number, layout: UnitLayout): readonly BlockFieldSchema[] {
-  const unitBase = PLAYST_SIZE + unitIndex * PACKED_UNIT_SIZE
+  const unitBase = layout.playStSize + unitIndex * PACKED_UNIT_SIZE
   const groupKey = `units.${unitIndex}`
   const memberPrefix = `units[${unitIndex}]`
   const fields: BlockFieldSchema[] = []
@@ -343,15 +361,41 @@ function buildUnitSchema(layout: UnitLayout): readonly BlockFieldSchema[] {
 }
 
 function buildInventorySchema(layout: UnitLayout): readonly BlockFieldSchema[] {
-  const itemIdBase = getSupplyIdBase(layout)
-  const itemUsesBitBase = (itemIdBase + CONVOY_ITEM_COUNT) * 8
   const rows: BlockFieldSchema[] = []
+  const supplyBase = getSupplyIdBase(layout)
 
-  for (let convoyIndex = 0; convoyIndex < CONVOY_ITEM_COUNT; convoyIndex += 1) {
+  for (let convoyIndex = 0; convoyIndex < layout.convoyItemCount; convoyIndex += 1) {
+    if (layout.convoyEncoding === 'u16Packed') {
+      const entryBitOffset = (supplyBase + convoyIndex * 2) * 8
+      rows.push(
+        makeBitField({
+          key: `inventory.convoy.${convoyIndex}.itemId`,
+          bitOffset: entryBitOffset,
+          bitLength: 8,
+          labelKey: 'field.inventory.convoyItemId',
+          domain: 'inventory',
+          groupKey: 'inventory.convoy',
+          memberPath: `inventory.convoy[${convoyIndex}].itemId`,
+        }),
+      )
+      rows.push(
+        makeBitField({
+          key: `inventory.convoy.${convoyIndex}.uses`,
+          bitOffset: entryBitOffset + 8,
+          bitLength: 6,
+          labelKey: 'field.inventory.convoyUses',
+          domain: 'inventory',
+          groupKey: 'inventory.convoy',
+          memberPath: `inventory.convoy[${convoyIndex}].uses`,
+        }),
+      )
+      continue
+    }
+
     rows.push(
       makeField({
         key: `inventory.convoy.${convoyIndex}.itemId`,
-        offset: itemIdBase + convoyIndex,
+        offset: supplyBase + convoyIndex,
         size: 1,
         type: 'u8',
         labelKey: 'field.inventory.convoyItemId',
@@ -363,7 +407,7 @@ function buildInventorySchema(layout: UnitLayout): readonly BlockFieldSchema[] {
     rows.push(
       makeBitField({
         key: `inventory.convoy.${convoyIndex}.uses`,
-        bitOffset: itemUsesBitBase + convoyIndex * 6,
+        bitOffset: (supplyBase + layout.convoyItemCount) * 8 + convoyIndex * 6,
         bitLength: 6,
         labelKey: 'field.inventory.convoyUses',
         domain: 'inventory',
@@ -377,7 +421,7 @@ function buildInventorySchema(layout: UnitLayout): readonly BlockFieldSchema[] {
 }
 
 function buildGameSaveSchema(layout: UnitLayout): readonly BlockFieldSchema[] {
-  return [...PLAYST_FIELD_SCHEMA, ...buildUnitSchema(layout), ...buildInventorySchema(layout)]
+  return [...layout.playStateFields, ...buildUnitSchema(layout), ...buildInventorySchema(layout)]
 }
 
 export function buildFe6SaveSchema(): readonly BlockFieldSchema[] {
@@ -396,20 +440,25 @@ export const EMPTY_BLOCK_SCHEMA: readonly BlockFieldSchema[] = []
 const FE6_GAME_SAVE_SCHEMA = buildFe6SaveSchema()
 const FE7_GAME_SAVE_SCHEMA = buildFe7SaveSchema()
 const FE8_GAME_SAVE_SCHEMA = buildFe8SaveSchema()
-const SUSPEND_SCHEMA = PLAYST_FIELD_SCHEMA
+const SUSPEND_SCHEMA_BY_GAME: Readonly<Record<GameCode, readonly BlockFieldSchema[]>> = {
+  FE6: FE6_PLAYST_FIELD_SCHEMA,
+  FE7: FE7_FE8_PLAYST_FIELD_SCHEMA,
+  FE8: FE7_FE8_PLAYST_FIELD_SCHEMA,
+  UNKNOWN: EMPTY_BLOCK_SCHEMA,
+}
 
 const BLOCK_SCHEMA_BY_GAME: Readonly<Record<GameCode, Readonly<Partial<Record<number, readonly BlockFieldSchema[]>>>>> = {
   FE6: {
     0: FE6_GAME_SAVE_SCHEMA,
-    1: SUSPEND_SCHEMA,
+    1: SUSPEND_SCHEMA_BY_GAME.FE6,
   },
   FE7: {
     0: FE7_GAME_SAVE_SCHEMA,
-    1: SUSPEND_SCHEMA,
+    1: SUSPEND_SCHEMA_BY_GAME.FE7,
   },
   FE8: {
     0: FE8_GAME_SAVE_SCHEMA,
-    1: SUSPEND_SCHEMA,
+    1: SUSPEND_SCHEMA_BY_GAME.FE8,
   },
   UNKNOWN: {},
 }

@@ -145,12 +145,13 @@ describe('structuredEditor', () => {
   })
 
   it.each([
-    { fileName: 'fireemblem-net/fireemblem-net-fe6-fe0702.sav', expectedGameCode: 'FE6' },
-    { fileName: 'fireemblem-net/fireemblem-net-fe7-fe0801.sav', expectedGameCode: 'FE7' },
-    { fileName: 'fireemblem-net/fireemblem-net-fe8-fe0901.sav', expectedGameCode: 'FE8' },
+    { fileName: 'fireemblem-net/fireemblem-net-fe6-fe0702.sav', expectedGameCode: 'FE6', expectedLastConvoyIndex: 99 },
+    { fileName: 'fireemblem-net/fireemblem-net-fe7-fe0801.sav', expectedGameCode: 'FE7', expectedLastConvoyIndex: 99 },
+    { fileName: 'fireemblem-net/fireemblem-net-fe8-fe0901.sav', expectedGameCode: 'FE8', expectedLastConvoyIndex: 87 },
   ] as const)('includes full unit and convoy coverage for $expectedGameCode structured rows', async ({
     fileName,
     expectedGameCode,
+    expectedLastConvoyIndex,
   }) => {
     const parsed = await parseSaveFile(await readRealSaveFixture(fileName))
     expect(parsed.gameCode).toBe(expectedGameCode)
@@ -166,8 +167,8 @@ describe('structuredEditor', () => {
     const rows = getStructuredRows(parsed, gameSaveBlock.index)
     expect(rows.some((row) => row.memberPath === 'units[10].level')).toBe(true)
     expect(rows.some((row) => row.memberPath === 'units[50].level')).toBe(true)
-    expect(rows.some((row) => row.memberPath === 'inventory.convoy[99].itemId')).toBe(true)
-    expect(rows.some((row) => row.memberPath === 'inventory.convoy[99].uses')).toBe(true)
+    expect(rows.some((row) => row.memberPath === `inventory.convoy[${expectedLastConvoyIndex}].itemId`)).toBe(true)
+    expect(rows.some((row) => row.memberPath === `inventory.convoy[${expectedLastConvoyIndex}].uses`)).toBe(true)
   })
 
   it('FE6 and FE7 structured rows are not byte-chunk-only', async () => {
