@@ -1,0 +1,59 @@
+{
+    "generatedAt":  "2026-07-06T17:19:51.7301448+08:00",
+    "sourceUrl":  "http://www.fireemblem.net/fe/download/index.htm",
+    "outputRoot":  "C:\\Projects\\FE_GBA_Save_Editor\\test-saves\\fireemblem-net",
+    "indexAttempt":  {
+                         "uri":  "http://www.fireemblem.net/fe/download/index.htm",
+                         "success":  true,
+                         "statusCode":  200,
+                         "error":  null,
+                         "cached":  true,
+                         "relativePath":  "test-saves\\fireemblem-net\\sources\\index.html"
+                     },
+    "archiveAttempts":  [
+                            {
+                                "titleCode":  "FE07",
+                                "mappedGameCode":  "FE6",
+                                "archiveUrl":  "http://www.fireemblem.net/fe/download/SAVE/FE0701.rar",
+                                "archiveFileName":  "FE0701.rar",
+                                "success":  true,
+                                "statusCode":  200,
+                                "error":  null,
+                                "cached":  true,
+                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0701.rar"
+                            },
+                            {
+                                "titleCode":  "FE07",
+                                "mappedGameCode":  "FE6",
+                                "archiveUrl":  "http://www.fireemblem.net/fe/download/SAVE/FE0702.rar",
+                                "archiveFileName":  "FE0702.rar",
+                                "success":  true,
+                                "statusCode":  200,
+                                "error":  null,
+                                "cached":  true,
+                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0702.rar"
+                            },
+                            {
+                                "titleCode":  "FE08",
+                                "mappedGameCode":  "FE7",
+                                "archiveUrl":  "http://www.fireemblem.net/fe/download/SAVE/FE0801.zip",
+                                "archiveFileName":  "FE0801.zip",
+                                "success":  true,
+                                "statusCode":  200,
+                                "error":  null,
+                                "cached":  true,
+                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0801.zip"
+                            },
+                            {
+                                "titleCode":  "FE09",
+                                "mappedGameCode":  "FE8",
+                                "archiveUrl":  "http://www.fireemblem.net/fe/download/SAVE/FE0901.rar",
+                                "archiveFileName":  "FE0901.rar",
+                                "success":  true,
+                                "statusCode":  200,
+                                "error":  null,
+                                "cached":  true,
+                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0901.rar"
+                            }
+                        ]
+}

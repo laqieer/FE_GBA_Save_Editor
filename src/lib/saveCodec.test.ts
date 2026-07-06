@@ -141,6 +141,7 @@ function buildSpsSave(): File {
 }
 
 const GAMEFAQS_FIXTURE_DIR = resolve(process.cwd(), 'test-saves', 'gamefaqs')
+const FIREEMBLEM_NET_FIXTURE_DIR = resolve(process.cwd(), 'test-saves', 'fireemblem-net')
 const REAL_FIXTURE_CASES = [
   { fileName: 'fe7-10530.sps', expectedGameCode: 'FE7', minimumValidBlocks: 1, expectedGeneralChecksumValid: true },
   { fileName: 'fe8-27399.sps', expectedGameCode: 'FE8', minimumValidBlocks: 1, expectedGeneralChecksumValid: true },
@@ -156,6 +157,13 @@ describe('saveCodec', () => {
   it('keeps automated real-fixture assertions meaningful', () => {
     expect(REAL_FIXTURE_CASES.every((fixture) => fixture.minimumValidBlocks > 0)).toBe(true)
     expect(REAL_FIXTURE_CASES.every((fixture) => fixture.expectedGeneralChecksumValid !== null)).toBe(true)
+  })
+
+  it('has fireemblem.net metadata file with at least one FE07/08/09 archive attempt', async () => {
+    const metadata = JSON.parse(
+      await readFile(resolve(FIREEMBLEM_NET_FIXTURE_DIR, 'sources', 'download-metadata.json'), 'utf8'),
+    )
+    expect(metadata.archiveAttempts.some((x: { titleCode: string }) => /^FE0[789]/.test(x.titleCode))).toBe(true)
   })
 
   it('normalizes .sps containers to raw save bytes', () => {
