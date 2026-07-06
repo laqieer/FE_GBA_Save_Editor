@@ -174,3 +174,31 @@ npm run build
   - `npm run test:run -- src/lib/structuredEditor.test.ts` → FAIL before fix (`falls back to generic rows for FE6, FE7, and UNKNOWN save blocks`), then PASS (`4/4`)
   - `npm run test:run -- src/lib/blockCodec.test.ts src/lib/saveCodec.test.ts src/lib/structuredEditor.test.ts` → PASS (`14/14`)
   - `npm run build` → PASS
+## Update 2026-07-06 Task 2 — Structured Navigation Helpers
+
+Files added:
+- src/lib/structuredNavigation.ts
+- src/lib/structuredNavigation.test.ts
+
+Summary:
+- Implemented parsePageJump, clampPageIndex, and findUnitPageByIndex per task brief.
+- parsePageJump accepts 1-based numeric input strings, validates, and returns a 0-based page index or null.
+- clampPageIndex ensures a page index is within [0, totalPages-1].
+- findUnitPageByIndex locates a unit group (groupKey "units.N") within a units section and returns its page index or null.
+
+TDD steps performed:
+1) Created failing tests (structuredNavigation.test.ts) covering parsing, clamping, and unit lookup.
+2) Ran: npm run test:run -- src/lib/structuredNavigation.test.ts (initially failed because files missing).
+3) Implemented src/lib/structuredNavigation.ts with minimal logic.
+4) Re-ran tests: all tests passed (3 passed).
+
+Verification:
+- Command: npm run test:run -- src/lib/structuredNavigation.test.ts
+- Result: PASS — 3 tests passed.
+
+Git:
+- Commit: 99c374a — feat: add structured navigation helper utilities
+
+Notes / Constraints:
+- Only pure helper logic was added; no UI behavior implemented.
+- Kept imports and types consistent with existing structuredTableLayout.ts definitions.
