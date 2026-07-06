@@ -97,9 +97,10 @@ export function resolveUnitSelectorPage(
   const trimmed = input.trim()
   if (!trimmed) return null
 
-  const numericPage = parsePageJump(trimmed, section.groups.length)
-  if (numericPage !== null) {
-    return findUnitPageByIndex(section, numericPage)
+  if (/^[0-9]+$/.test(trimmed)) {
+    const numericUnit = Number(trimmed)
+    if (!Number.isSafeInteger(numericUnit) || numericUnit <= 0) return null
+    return findUnitPageByIndex(section, numericUnit - 1)
   }
 
   const normalized = normalizeSelectorText(trimmed)
@@ -111,6 +112,15 @@ export function resolveUnitSelectorPage(
 
   const prefixMatches = options.filter((option) => option.searchText.startsWith(normalized))
   return prefixMatches.length === 1 ? prefixMatches[0].pageIndex : null
+}
+
+export function resolveUnitSelectorFallbackPage(
+  section: StructuredDomainSection,
+  currentValue: string | undefined,
+  options: readonly UnitSelectorOption[],
+): number {
+  if (!currentValue) return 0
+  return resolveUnitSelectorPage(section, currentValue, options) ?? 0
 }
 
 function getUnitSelectorValue(
@@ -205,14 +215,55 @@ export function BlockStructuredTable({
       const next: Record<string, number> = {}
       for (const section of groupedRows) {
         const currentPage = preserveGroupState ? current[section.id] ?? 0 : 0
-        const page = paginateStructuredSection(section, currentPage)
+        const unitOptions = unitSelectorOptionsBySection.get(section.id) ?? []
+        const nextPage =
+          section.domain === 'units'
+            ? resolveUnitSelectorFallbackPage(
+                section,
+                unitJumpInputs[section.id],
+                unitOptions,
+              )
+            : currentPage
+        const page = paginateStructuredSection(section, nextPage)
         next[section.id] = page.currentPage
       }
       return next
     })
+    setPageJumpInputs((current) => {
+      const next: Record<string, string> = {}
+      for (const section of groupedRows) {
+        if (section.domain !== 'units') {
+          continue
+        }
+        const unitOptions = unitSelectorOptionsBySection.get(section.id) ?? []
+        const nextPage = resolveUnitSelectorFallbackPage(
+          section,
+          unitJumpInputs[section.id],
+          unitOptions,
+        )
+        next[section.id] = String(nextPage + 1)
+      }
+      return Object.keys(next).length > 0 ? { ...current, ...next } : current
+    })
+    setUnitJumpInputs((current) => {
+      const next: Record<string, string> = {}
+      for (const section of groupedRows) {
+        if (section.domain !== 'units') {
+          continue
+        }
+        const unitOptions = unitSelectorOptionsBySection.get(section.id) ?? []
+        const nextPage = resolveUnitSelectorFallbackPage(
+          section,
+          unitJumpInputs[section.id],
+          unitOptions,
+        )
+        next[section.id] = getUnitSelectorValue(section, nextPage, t)
+      }
+      return Object.keys(next).length > 0 ? { ...current, ...next } : current
+    })
 
     previousLayoutBlockKey.current = blockKey
-  }, [blockKey, groupedRows, groups])
+  }, [blockKey, groupedRows, groups, t, unitSelectorOptionsBySection])
 
   useEffect(() => {
     const preserveNavigationState = previousNavigationBlockKey.current === blockKey

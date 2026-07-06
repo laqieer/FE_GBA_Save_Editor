@@ -6,6 +6,7 @@ import { groupRowsByDomainAndGroup } from '../lib/structuredTableLayout'
 import {
   BlockStructuredTable,
   buildUnitSelectorOptions,
+  resolveUnitSelectorFallbackPage,
   resolveUnitSelectorPage,
 } from './BlockStructuredTable'
 
@@ -89,5 +90,7 @@ describe('BlockStructuredTable', () => {
     expect(resolveUnitSelectorPage(section, 'Unit 2', options)).toBe(1)
     expect(resolveUnitSelectorPage(section, 'unit 1', options)).toBe(0)
     expect(resolveUnitSelectorPage(section, '2', options)).toBe(1)
+    expect(resolveUnitSelectorPage(section, '999', options)).toBeNull()
+    expect(resolveUnitSelectorFallbackPage(section, '999', options)).toBe(0)
   })
 })
