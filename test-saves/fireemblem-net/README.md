@@ -6,7 +6,7 @@ This fixture source crawls the `SAVE` section at:
 
 ## FE numbering
 
-The site labels the relevant archives as `FE07`, `FE08`, and `FE09`, which map to the editor's supported games as:
+The site uses +1 FE numbering for the relevant archives. `FE07`, `FE08`, and `FE09` map to the editor's supported games as:
 
 - `FE07` → `FE6`
 - `FE08` → `FE7`
@@ -31,3 +31,11 @@ The downloader writes:
 - The downloader writes archives and also extracts real `.sav` fixtures into the fixture root using deterministic names such as `fireemblem-net-fe8-fe0901.sav`.
 - `.rar` extraction is mandatory: the script requires either `7z` or `tar` for `.rar` archives, records the extraction result in `sources/download-metadata.json`, and exits non-zero if any archive cannot be extracted.
 - Each downloaded archive has extraction metadata recorded in `sources/download-metadata.json` under each `archiveAttempts[].extraction`, including `archiveEntries`, `fixtureFiles`, and the extractor used.
+
+## Current fixture count
+
+Current committed `.sav` fixtures: **3**
+
+- `fireemblem-net-fe6-fe0702.sav`
+- `fireemblem-net-fe7-fe0801.sav`
+- `fireemblem-net-fe8-fe0901.sav`

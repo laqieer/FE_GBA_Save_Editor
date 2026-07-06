@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { basename, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   SAVE_CODEC_ERROR_KEYS,
@@ -154,6 +154,10 @@ type FireEmblemNetArchiveAttempt = {
 type FireEmblemNetMetadata = {
   archiveAttempts: FireEmblemNetArchiveAttempt[]
 }
+type FireEmblemNetExtractedFixture = {
+  filePath: string
+  mappedGameCode: 'FE6' | 'FE7' | 'FE8'
+}
 const REAL_FIXTURE_CASES = [
   { fileName: 'fe7-10530.sps', expectedGameCode: 'FE7', minimumValidBlocks: 1, expectedGeneralChecksumValid: true },
   { fileName: 'fe8-27399.sps', expectedGameCode: 'FE8', minimumValidBlocks: 1, expectedGeneralChecksumValid: true },
@@ -210,6 +214,20 @@ function normalizeRelativePath(path: string): string {
   return path.replaceAll('\\', '/')
 }
 
+function getFireEmblemNetExtractedFixtures(metadata: FireEmblemNetMetadata): FireEmblemNetExtractedFixture[] {
+  return metadata.archiveAttempts.flatMap((attempt) => {
+    const mappedGameCode = attempt.mappedGameCode
+    if (mappedGameCode === null || !attempt.extraction?.fixtureFiles) {
+      return []
+    }
+
+    return attempt.extraction.fixtureFiles.map((fixtureFile) => ({
+      filePath: normalizeRelativePath(fixtureFile),
+      mappedGameCode,
+    }))
+  })
+}
+
 describe('saveCodec', () => {
   it('keeps automated real-fixture assertions meaningful', () => {
     expect(REAL_FIXTURE_CASES.every((fixture) => fixture.minimumValidBlocks > 0)).toBe(true)
@@ -232,6 +250,22 @@ describe('saveCodec', () => {
       expect(
         attempt?.extraction?.fixtureFiles?.map((path) => normalizeRelativePath(path)),
       ).toContain(`test-saves/fireemblem-net/${fixture.fileName}`)
+    }
+  })
+
+  it('parses every fireemblem.net sav fixture with mapped FE code', async () => {
+    const metadata = await readFireEmblemNetMetadata()
+    const fixtures = getFireEmblemNetExtractedFixtures(metadata)
+
+    expect(fixtures.length).toBeGreaterThan(0)
+
+    for (const fixture of fixtures) {
+      const bytes = await readFile(resolve(process.cwd(), fixture.filePath))
+      const parsed = await parseSaveFile(
+        new File([bytes], basename(fixture.filePath), { type: 'application/octet-stream' }),
+      )
+
+      expect(parsed.gameCode).toBe(fixture.mappedGameCode)
     }
   })
 

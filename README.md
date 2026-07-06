@@ -50,6 +50,12 @@ Deterministic `.sps` regression fixtures live in `test-saves/gamefaqs/`.
 - The script tries the three requested GameFAQs save pages first, then records `403 Forbidden` evidence and falls back to Archive.org's `gba_savegames.zip` mirror when direct access is blocked
 - Provenance, selected fixture notes, and refresh details are documented in `test-saves/gamefaqs/README.md`
 
+Deterministic `.sav` regression fixtures live in `test-saves/fireemblem-net/`.
+
+- Refresh them with `powershell -ExecutionPolicy Bypass -File .\scripts\tools\download_fireemblem_net_saves.ps1 -Force`
+- The downloader maps FE07/FE08/FE09 archives to FE6/FE7/FE8 and extracts every committed `.sav` payload
+- Provenance, extraction notes, and the current fixture count are documented in `test-saves/fireemblem-net/README.md`
+
 ## GitHub Pages
 
 Live site: <https://laqieer.github.io/FE_GBA_Save_Editor/>
