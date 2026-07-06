@@ -168,3 +168,49 @@ export function paginateStructuredRows(
     rows: rows.slice(startIndex, endIndex),
   }
 }
+
+export type StructuredDomainPage = {
+  currentPage: number
+  totalPages: number
+  rows: FieldRow[]
+  visibleGroupIds: string[]
+}
+
+function isUnitsSection(section: StructuredDomainSection): boolean {
+  return section.domain === 'units'
+}
+
+export function getUnitGroupIndexes(section: StructuredDomainSection): number[] {
+  if (!isUnitsSection(section)) return []
+  return section.groups
+    .map((group) => /^units\.(\d+)$/.exec(group.groupKey)?.[1])
+    .filter((value): value is string => value !== undefined)
+    .map((value) => Number(value))
+}
+
+export function paginateStructuredSection(
+  section: StructuredDomainSection,
+  pageIndex: number,
+): StructuredDomainPage {
+  if (!isUnitsSection(section)) {
+    const page = paginateStructuredRows(section.rows, pageIndex)
+    const visibleGroups = groupRowsByDomainAndGroup(page.rows).find((s) => s.id === section.id)?.groups ?? []
+    return {
+      currentPage: page.currentPage,
+      totalPages: page.totalPages,
+      rows: page.rows,
+      visibleGroupIds: visibleGroups.map((group) => group.id),
+    }
+  }
+
+  const totalPages = Math.max(1, section.groups.length)
+  const currentPage = Math.min(Math.max(0, Math.trunc(pageIndex) || 0), totalPages - 1)
+  const selectedGroup = section.groups[currentPage]
+  return {
+    currentPage,
+    totalPages,
+    rows: selectedGroup?.rows ?? [],
+    visibleGroupIds: selectedGroup ? [selectedGroup.id] : [],
+  }
+}
+

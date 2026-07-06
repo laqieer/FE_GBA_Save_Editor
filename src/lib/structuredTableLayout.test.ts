@@ -4,6 +4,8 @@ import {
   STRUCTURED_DOMAIN_PAGE_SIZE,
   groupRowsByDomainAndGroup,
   paginateStructuredRows,
+  paginateStructuredSection,
+  getUnitGroupIndexes,
 } from './structuredTableLayout'
 
 function makeRow(overrides: Partial<FieldRow> & Pick<FieldRow, 'key'>): FieldRow {
@@ -142,5 +144,32 @@ describe('structuredTableLayout', () => {
     ])
 
     expect(grouped[0]?.groups[0]?.defaultCollapsed).toBe(true)
+  })
+
+  it('paginates units domain as one full unit-group per page', () => {
+    const rows: FieldRow[] = [
+      makeRow({ key: 'u0.a', domain: 'units', groupKey: 'units.0', unitIndex: 0 }),
+      makeRow({ key: 'u0.b', domain: 'units', groupKey: 'units.0', unitIndex: 0 }),
+      makeRow({ key: 'u1.a', domain: 'units', groupKey: 'units.1', unitIndex: 1 }),
+    ]
+    const section = groupRowsByDomainAndGroup(rows)[0]!
+    const page0 = paginateStructuredSection(section, 0)
+    const page1 = paginateStructuredSection(section, 1)
+
+    expect(page0.totalPages).toBe(2)
+    expect(page0.visibleGroupIds).toEqual(['units:units.0'])
+    expect(page0.rows.map((r) => r.key)).toEqual(['u0.a', 'u0.b'])
+    expect(page1.visibleGroupIds).toEqual(['units:units.1'])
+    expect(page1.rows.map((r) => r.key)).toEqual(['u1.a'])
+  })
+
+  it('returns unit group indexes for units section', () => {
+    const rows: FieldRow[] = [
+      makeRow({ key: 'u0.a', domain: 'units', groupKey: 'units.0', unitIndex: 0 }),
+      makeRow({ key: 'u0.b', domain: 'units', groupKey: 'units.0', unitIndex: 0 }),
+      makeRow({ key: 'u1.a', domain: 'units', groupKey: 'units.1', unitIndex: 1 }),
+    ]
+    const section = groupRowsByDomainAndGroup(rows)[0]!
+    expect(getUnitGroupIndexes(section)).toEqual([0, 1])
   })
 })
