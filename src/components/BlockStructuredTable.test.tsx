@@ -348,6 +348,52 @@ describe('BlockStructuredTable', () => {
     )
   })
 
+  it('renders only the current paged slice for non-units sections', async () => {
+    const rows: FieldRow[] = [
+      ...Array.from({ length: 31 }, (_, index) =>
+        makeRow({
+          key: `playst.${index}`,
+          domain: 'playState',
+          groupKey: 'playst',
+          memberPath: `playst.${index}`,
+          labelKey: `field.playst.${index}`,
+          offset: index,
+        }),
+      ),
+      ...Array.from({ length: 5 }, (_, index) =>
+        makeRow({
+          key: `chapter.${index}`,
+          domain: 'playState',
+          groupKey: 'chapter',
+          memberPath: `chapter.${index}`,
+          labelKey: `field.chapter.${index}`,
+          offset: 31 + index,
+        }),
+      ),
+    ]
+
+    mounted = await mountTable('block-a', rows)
+
+    expect(mounted.container.querySelectorAll('tbody tr')).toHaveLength(32)
+    expect(mounted.container.textContent).toContain('field.chapter.0')
+
+    const nextButton = Array.from(mounted.container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Next',
+    )
+    expect(nextButton).toBeDefined()
+    if (!nextButton) return
+
+    await act(async () => {
+      nextButton.click()
+    })
+
+    expect(getPageStatus(mounted.container)).toContain('2 / 2')
+    expect(mounted.container.querySelectorAll('tbody tr')).toHaveLength(4)
+    expect(mounted.container.textContent).not.toContain('field.chapter.0')
+    expect(mounted.container.textContent).toContain('field.chapter.1')
+    expect(mounted.container.textContent).toContain('field.chapter.4')
+  })
+
   it('does not jump to Unit 1 when the selector text is partial or the locale changes', async () => {
     mounted = await mountTable('block-a', makeUnitRows())
 

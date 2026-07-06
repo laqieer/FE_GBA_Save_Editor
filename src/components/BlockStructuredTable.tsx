@@ -372,9 +372,9 @@ export function BlockStructuredTable({
         <section className="structured-domain-section" key={section.id}>
           {(() => {
             const page = paginateStructuredSection(section, domainPages[section.id] ?? 0)
-            const visibleGroups = section.groups.filter((group) =>
-              page.visibleGroupIds.includes(group.id),
-            )
+            const visibleGroups =
+              groupRowsByDomainAndGroup(page.rows).find((pagedSection) => pagedSection.id === section.id)
+                ?.groups ?? []
 
             return (
               <>
