@@ -71,8 +71,16 @@ function App() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    // strip known extensions before appending -edited.sav
-    a.download = parsed.fileName.replace(/(\.sav|\.sps)$/i, '') + '-edited.sav'
+    // preserve original extension (.sav or .sps) and append -edited before it
+    const match = parsed.fileName.match(/(.*?)(\.(sav|sps))$/i)
+    if (match) {
+      const base = match[1]
+      const ext = match[2]
+      a.download = base + '-edited' + ext
+    } else {
+      // fallback
+      a.download = parsed.fileName + '-edited.sav'
+    }
     a.click()
     URL.revokeObjectURL(url)
   }
