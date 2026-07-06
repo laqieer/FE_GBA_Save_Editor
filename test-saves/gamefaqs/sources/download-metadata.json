@@ -1,5 +1,5 @@
 ﻿{
-    "generatedAt":  "2026-07-06T12:57:47.6526733+08:00",
+    "generatedAt":  "2026-07-06T17:00:29.4971639+08:00",
     "repoRoot":  "C:\\Projects\\FE_GBA_Save_Editor\\",
     "outputRoot":  "C:\\Projects\\FE_GBA_Save_Editor\\test-saves\\gamefaqs",
     "gameFaqsPageAttempts":  [
@@ -46,6 +46,136 @@
                                      "fileName":  "fe6-17515.sps"
                                  },
                                  {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/4114",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe6",
+                                     "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                     "archiveId":  "4114",
+                                     "fileName":  "fe6-4114.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/4202",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe6",
+                                     "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                     "archiveId":  "4202",
+                                     "fileName":  "fe6-4202.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/11187",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe6",
+                                     "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                     "archiveId":  "11187",
+                                     "fileName":  "fe6-11187.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/8090",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe6",
+                                     "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                     "archiveId":  "8090",
+                                     "fileName":  "fe6-8090.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/5846",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe6",
+                                     "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                     "archiveId":  "5846",
+                                     "fileName":  "fe6-5846.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/27407",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe7",
+                                     "game":  "Fire Emblem",
+                                     "archiveId":  "27407",
+                                     "fileName":  "fe7-27407.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/3345",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe7",
+                                     "game":  "Fire Emblem",
+                                     "archiveId":  "3345",
+                                     "fileName":  "fe7-3345.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/7812",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe7",
+                                     "game":  "Fire Emblem",
+                                     "archiveId":  "7812",
+                                     "fileName":  "fe7-7812.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/7800",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe7",
+                                     "game":  "Fire Emblem",
+                                     "archiveId":  "7800",
+                                     "fileName":  "fe7-7800.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/27572",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe7",
+                                     "game":  "Fire Emblem",
+                                     "archiveId":  "27572",
+                                     "fileName":  "fe7-27572.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/3790",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe7",
+                                     "game":  "Fire Emblem",
+                                     "archiveId":  "3790",
+                                     "fileName":  "fe7-3790.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/3236",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe7",
+                                     "game":  "Fire Emblem",
+                                     "archiveId":  "3236",
+                                     "fileName":  "fe7-3236.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/3237",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe7",
+                                     "game":  "Fire Emblem",
+                                     "archiveId":  "3237",
+                                     "fileName":  "fe7-3237.sps"
+                                 },
+                                 {
                                      "uri":  "https://gamefaqs.gamespot.com/a/saves/10530",
                                      "success":  false,
                                      "statusCode":  403,
@@ -56,6 +186,76 @@
                                      "fileName":  "fe7-10530.sps"
                                  },
                                  {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/3238",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe7",
+                                     "game":  "Fire Emblem",
+                                     "archiveId":  "3238",
+                                     "fileName":  "fe7-3238.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/4435",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe7",
+                                     "game":  "Fire Emblem",
+                                     "archiveId":  "4435",
+                                     "fileName":  "fe7-4435.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/7752",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe8",
+                                     "game":  "Fire Emblem: The Sacred Stones",
+                                     "archiveId":  "7752",
+                                     "fileName":  "fe8-7752.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/12863",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe8",
+                                     "game":  "Fire Emblem: The Sacred Stones",
+                                     "archiveId":  "12863",
+                                     "fileName":  "fe8-12863.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/9531",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe8",
+                                     "game":  "Fire Emblem: The Sacred Stones",
+                                     "archiveId":  "9531",
+                                     "fileName":  "fe8-9531.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/11485",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe8",
+                                     "game":  "Fire Emblem: The Sacred Stones",
+                                     "archiveId":  "11485",
+                                     "fileName":  "fe8-11485.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/10248",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe8",
+                                     "game":  "Fire Emblem: The Sacred Stones",
+                                     "archiveId":  "10248",
+                                     "fileName":  "fe8-10248.sps"
+                                 },
+                                 {
                                      "uri":  "https://gamefaqs.gamespot.com/a/saves/27399",
                                      "success":  false,
                                      "statusCode":  403,
@@ -64,10 +264,439 @@
                                      "game":  "Fire Emblem: The Sacred Stones",
                                      "archiveId":  "27399",
                                      "fileName":  "fe8-27399.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/24608",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe8",
+                                     "game":  "Fire Emblem: The Sacred Stones",
+                                     "archiveId":  "24608",
+                                     "fileName":  "fe8-24608.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/8000",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe8",
+                                     "game":  "Fire Emblem: The Sacred Stones",
+                                     "archiveId":  "8000",
+                                     "fileName":  "fe8-8000.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/9568",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe8",
+                                     "game":  "Fire Emblem: The Sacred Stones",
+                                     "archiveId":  "9568",
+                                     "fileName":  "fe8-9568.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/7999",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe8",
+                                     "game":  "Fire Emblem: The Sacred Stones",
+                                     "archiveId":  "7999",
+                                     "fileName":  "fe8-7999.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/7737",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe8",
+                                     "game":  "Fire Emblem: The Sacred Stones",
+                                     "archiveId":  "7737",
+                                     "fileName":  "fe8-7737.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/7814",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe8",
+                                     "game":  "Fire Emblem: The Sacred Stones",
+                                     "archiveId":  "7814",
+                                     "fileName":  "fe8-7814.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/7753",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe8",
+                                     "game":  "Fire Emblem: The Sacred Stones",
+                                     "archiveId":  "7753",
+                                     "fileName":  "fe8-7753.sps"
                                  }
                              ],
     "archiveFallbackAttempts":  [
-
+                                    {
+                                        "uri":  "https://ia801604.us.archive.org/view_archive.php?archive=/9/items/gamefaqs_savegames/gba_savegames.zip\u0026file=Fire%20Emblem_%20Fuuin%20no%20Tsurugi%2Fgameboy-advance-gameshark-save-japan%2Fdescription.txt",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe6",
+                                        "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                        "artifactType":  "description",
+                                        "fileName":  "fe6-archive-description.txt"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Fuuin%20no%20Tsurugi%2Fgameboy-advance-gameshark-save-japan%2F17515.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe6",
+                                        "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                        "archiveId":  "17515",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe6-17515.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Fuuin%20no%20Tsurugi%2Fgameboy-advance-gameshark-save-japan%2F4114.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe6",
+                                        "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                        "archiveId":  "4114",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe6-4114.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Fuuin%20no%20Tsurugi%2Fgameboy-advance-gameshark-save-japan%2F4202.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe6",
+                                        "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                        "archiveId":  "4202",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe6-4202.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Fuuin%20no%20Tsurugi%2Fgameboy-advance-gameshark-save-japan%2F11187.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe6",
+                                        "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                        "archiveId":  "11187",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe6-11187.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Fuuin%20no%20Tsurugi%2Fgameboy-advance-gameshark-save-japan%2F8090.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe6",
+                                        "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                        "archiveId":  "8090",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe6-8090.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Fuuin%20no%20Tsurugi%2Fgameboy-advance-gameshark-save-japan%2F5846.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe6",
+                                        "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                        "archiveId":  "5846",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe6-5846.sps"
+                                    },
+                                    {
+                                        "uri":  "https://ia801604.us.archive.org/view_archive.php?archive=/9/items/gamefaqs_savegames/gba_savegames.zip\u0026file=Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2Fdescription.txt",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe7",
+                                        "game":  "Fire Emblem",
+                                        "artifactType":  "description",
+                                        "fileName":  "fe7-archive-description.txt"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F27407.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe7",
+                                        "game":  "Fire Emblem",
+                                        "archiveId":  "27407",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe7-27407.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F3345.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe7",
+                                        "game":  "Fire Emblem",
+                                        "archiveId":  "3345",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe7-3345.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F7812.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe7",
+                                        "game":  "Fire Emblem",
+                                        "archiveId":  "7812",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe7-7812.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F7800.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe7",
+                                        "game":  "Fire Emblem",
+                                        "archiveId":  "7800",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe7-7800.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F27572.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe7",
+                                        "game":  "Fire Emblem",
+                                        "archiveId":  "27572",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe7-27572.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F3790.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe7",
+                                        "game":  "Fire Emblem",
+                                        "archiveId":  "3790",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe7-3790.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F3236.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe7",
+                                        "game":  "Fire Emblem",
+                                        "archiveId":  "3236",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe7-3236.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F3237.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe7",
+                                        "game":  "Fire Emblem",
+                                        "archiveId":  "3237",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe7-3237.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F10530.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe7",
+                                        "game":  "Fire Emblem",
+                                        "archiveId":  "10530",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe7-10530.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F3238.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe7",
+                                        "game":  "Fire Emblem",
+                                        "archiveId":  "3238",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe7-3238.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F4435.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe7",
+                                        "game":  "Fire Emblem",
+                                        "archiveId":  "4435",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe7-4435.sps"
+                                    },
+                                    {
+                                        "uri":  "https://ia801604.us.archive.org/view_archive.php?archive=/9/items/gamefaqs_savegames/gba_savegames.zip\u0026file=Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2Fdescription.txt",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe8",
+                                        "game":  "Fire Emblem: The Sacred Stones",
+                                        "artifactType":  "description",
+                                        "fileName":  "fe8-archive-description.txt"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F7752.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe8",
+                                        "game":  "Fire Emblem: The Sacred Stones",
+                                        "archiveId":  "7752",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe8-7752.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F12863.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe8",
+                                        "game":  "Fire Emblem: The Sacred Stones",
+                                        "archiveId":  "12863",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe8-12863.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F9531.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe8",
+                                        "game":  "Fire Emblem: The Sacred Stones",
+                                        "archiveId":  "9531",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe8-9531.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F11485.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe8",
+                                        "game":  "Fire Emblem: The Sacred Stones",
+                                        "archiveId":  "11485",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe8-11485.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F10248.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe8",
+                                        "game":  "Fire Emblem: The Sacred Stones",
+                                        "archiveId":  "10248",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe8-10248.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F27399.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe8",
+                                        "game":  "Fire Emblem: The Sacred Stones",
+                                        "archiveId":  "27399",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe8-27399.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F24608.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe8",
+                                        "game":  "Fire Emblem: The Sacred Stones",
+                                        "archiveId":  "24608",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe8-24608.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F8000.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe8",
+                                        "game":  "Fire Emblem: The Sacred Stones",
+                                        "archiveId":  "8000",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe8-8000.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F9568.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe8",
+                                        "game":  "Fire Emblem: The Sacred Stones",
+                                        "archiveId":  "9568",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe8-9568.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F7999.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe8",
+                                        "game":  "Fire Emblem: The Sacred Stones",
+                                        "archiveId":  "7999",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe8-7999.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F7737.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe8",
+                                        "game":  "Fire Emblem: The Sacred Stones",
+                                        "archiveId":  "7737",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe8-7737.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F7814.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe8",
+                                        "game":  "Fire Emblem: The Sacred Stones",
+                                        "archiveId":  "7814",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe8-7814.sps"
+                                    },
+                                    {
+                                        "uri":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F7753.sps",
+                                        "success":  true,
+                                        "statusCode":  200,
+                                        "error":  null,
+                                        "key":  "fe8",
+                                        "game":  "Fire Emblem: The Sacred Stones",
+                                        "archiveId":  "7753",
+                                        "artifactType":  "fixture",
+                                        "fileName":  "fe8-7753.sps"
+                                    }
                                 ],
     "fallbackFixtures":  [
                              {
@@ -82,6 +711,149 @@
                                  "descriptionEntry":  "17515\r\nFrom zeldafreak007 (07/24/2008; 64KB)\r\nAll battle maps, all secret characters, One save on Beyond the Darkness and 2 other on Chapter 22"
                              },
                              {
+                                 "key":  "fe6",
+                                 "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                 "archiveId":  "4114",
+                                 "fileName":  "fe6-4114.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe6-4114.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Fuuin%20no%20Tsurugi%2Fgameboy-advance-gameshark-save-japan%2F4114.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe6-archive-description.txt",
+                                 "descriptionEntry":  "4114\r\nFrom NeoDhaos (05/30/2004; 64KB)\r\nAll holy weapons, at last chapter and have all 3 battle maps unlocked."
+                             },
+                             {
+                                 "key":  "fe6",
+                                 "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                 "archiveId":  "4202",
+                                 "fileName":  "fe6-4202.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe6-4202.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Fuuin%20no%20Tsurugi%2Fgameboy-advance-gameshark-save-japan%2F4202.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe6-archive-description.txt",
+                                 "descriptionEntry":  "4202\r\nFrom NeoDhaos (06/07/2004; 64KB)\r\nCompleted game, have all devine weapons, all battle maps, all characters, all battle characters, everyone at level 20/20"
+                             },
+                             {
+                                 "key":  "fe6",
+                                 "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                 "archiveId":  "11187",
+                                 "fileName":  "fe6-11187.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe6-11187.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Fuuin%20no%20Tsurugi%2Fgameboy-advance-gameshark-save-japan%2F11187.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe6-archive-description.txt",
+                                 "descriptionEntry":  "11187\r\nFrom Wachon (03/22/2006; 64KB)\r\nFire Emblem Fuuin no Tsurugi Save with all the characters modes unlocked"
+                             },
+                             {
+                                 "key":  "fe6",
+                                 "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                 "archiveId":  "8090",
+                                 "fileName":  "fe6-8090.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe6-8090.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Fuuin%20no%20Tsurugi%2Fgameboy-advance-gameshark-save-japan%2F8090.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe6-archive-description.txt",
+                                 "descriptionEntry":  "8090\r\nFrom AjoraFlame (06/20/2005; 64KB)\r\nFirst save at ending while second save at chapter 8."
+                             },
+                             {
+                                 "key":  "fe6",
+                                 "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                 "archiveId":  "5846",
+                                 "fileName":  "fe6-5846.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe6-5846.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Fuuin%20no%20Tsurugi%2Fgameboy-advance-gameshark-save-japan%2F5846.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe6-archive-description.txt",
+                                 "descriptionEntry":  "5846\r\nFrom RuruniX (01/10/2005; 64KB)\r\nLast stage, good stats and character"
+                             },
+                             {
+                                 "key":  "fe7",
+                                 "game":  "Fire Emblem",
+                                 "archiveId":  "27407",
+                                 "fileName":  "fe7-27407.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe7-27407.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F27407.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe7-archive-description.txt",
+                                 "descriptionEntry":  "27407\r\nFrom Memo_rize (02/06/2021; 64KB)\r\n[FOR RANKED RUNS - HHM UNLOCKED] Intentionally sabotaged rankings for each mode, so accurate battle history can be recorded when finishing a run. 100% supports, sound room/cgs, and bonus disk content!"
+                             },
+                             {
+                                 "key":  "fe7",
+                                 "game":  "Fire Emblem",
+                                 "archiveId":  "3345",
+                                 "fileName":  "fe7-3345.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe7-3345.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F3345.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe7-archive-description.txt",
+                                 "descriptionEntry":  "3345\r\nFrom ingo4 (01/26/2004; 64KB)\r\n*Sharked Game Save* Awesome Items in inventory."
+                             },
+                             {
+                                 "key":  "fe7",
+                                 "game":  "Fire Emblem",
+                                 "archiveId":  "7812",
+                                 "fileName":  "fe7-7812.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe7-7812.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F7812.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe7-archive-description.txt",
+                                 "descriptionEntry":  "7812\r\nFrom CharlieF (05/26/2005; 64KB)\r\n100% Music, 100% Support, 100% Bonus Disk Items, Hard Modes Available"
+                             },
+                             {
+                                 "key":  "fe7",
+                                 "game":  "Fire Emblem",
+                                 "archiveId":  "7800",
+                                 "fileName":  "fe7-7800.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe7-7800.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F7800.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe7-archive-description.txt",
+                                 "descriptionEntry":  "7800\r\nFrom Gigashock (05/24/2005; 64KB)\r\n100% Support"
+                             },
+                             {
+                                 "key":  "fe7",
+                                 "game":  "Fire Emblem",
+                                 "archiveId":  "27572",
+                                 "fileName":  "fe7-27572.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe7-27572.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F27572.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe7-archive-description.txt",
+                                 "descriptionEntry":  "27572\r\nFrom BOBdotEXE (05/28/2021; 32KB)\r\nBlank save with Exclusive Extras! (Empty save with legit bonus content from the \u0027Mario Kart Double Dash\u0027 Bonus Disc. No cheats used!)"
+                             },
+                             {
+                                 "key":  "fe7",
+                                 "game":  "Fire Emblem",
+                                 "archiveId":  "3790",
+                                 "fileName":  "fe7-3790.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe7-3790.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F3790.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe7-archive-description.txt",
+                                 "descriptionEntry":  "3790\r\nFrom AjoraFlame (04/24/2004; 64KB)\r\nEliwood\u0027s last stage. Kent (paladin) is level 20 with S in lance. A lot of characters have changed class, but a few characters are dead."
+                             },
+                             {
+                                 "key":  "fe7",
+                                 "game":  "Fire Emblem",
+                                 "archiveId":  "3236",
+                                 "fileName":  "fe7-3236.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe7-3236.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F3236.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe7-archive-description.txt",
+                                 "descriptionEntry":  "3236\r\nFrom FF_TLSOK (12/05/2003; 64KB)\r\nFinal Chapter"
+                             },
+                             {
+                                 "key":  "fe7",
+                                 "game":  "Fire Emblem",
+                                 "archiveId":  "3237",
+                                 "fileName":  "fe7-3237.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe7-3237.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F3237.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe7-archive-description.txt",
+                                 "descriptionEntry":  "3237\r\nFrom FF_TLSOK (01/07/2004; 64KB)\r\nFinal Chapter: Light."
+                             },
+                             {
                                  "key":  "fe7",
                                  "game":  "Fire Emblem",
                                  "archiveId":  "10530",
@@ -93,6 +865,83 @@
                                  "descriptionEntry":  "10530\r\nFrom Wachon (01/09/2006; 64KB)\r\nFire Emblem Save with all the characters and all the modes unlocked"
                              },
                              {
+                                 "key":  "fe7",
+                                 "game":  "Fire Emblem",
+                                 "archiveId":  "3238",
+                                 "fileName":  "fe7-3238.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe7-3238.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F3238.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe7-archive-description.txt",
+                                 "descriptionEntry":  "3238\r\nFrom Relle (01/08/2004; 64KB)\r\nSaved at the final chapter of Eliwood\u0027s story.  Many characters promoted and equipped with great weapons."
+                             },
+                             {
+                                 "key":  "fe7",
+                                 "game":  "Fire Emblem",
+                                 "archiveId":  "4435",
+                                 "fileName":  "fe7-4435.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe7-4435.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F4435.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe7-archive-description.txt",
+                                 "descriptionEntry":  "4435\r\nFrom AjoraFlame (07/03/2004; 64KB)\r\nTwo slots. First at final battle. Second after final battle with suport conversions. Hector and Guy are promoted at Level 20 and is now level 20 after promoting. Karel and Karla are in the troop."
+                             },
+                             {
+                                 "key":  "fe8",
+                                 "game":  "Fire Emblem: The Sacred Stones",
+                                 "archiveId":  "7752",
+                                 "fileName":  "fe8-7752.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe8-7752.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F7752.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe8-archive-description.txt",
+                                 "descriptionEntry":  "7752\r\nFrom AjoraFlame (05/16/2005; 64KB)\r\n100% Support Unlocked!"
+                             },
+                             {
+                                 "key":  "fe8",
+                                 "game":  "Fire Emblem: The Sacred Stones",
+                                 "archiveId":  "12863",
+                                 "fileName":  "fe8-12863.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe8-12863.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F12863.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe8-archive-description.txt",
+                                 "descriptionEntry":  "12863\r\nFrom Wachon (08/26/2006; 64KB)\r\nAll characters unlocked. All in lvl 20. One Save at the choice of Eirika or Ephraim in normal mode."
+                             },
+                             {
+                                 "key":  "fe8",
+                                 "game":  "Fire Emblem: The Sacred Stones",
+                                 "archiveId":  "9531",
+                                 "fileName":  "fe8-9531.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe8-9531.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F9531.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe8-archive-description.txt",
+                                 "descriptionEntry":  "9531\r\nFrom Sangogi (10/14/2005; 64KB)\r\nAll support conversations. All characters unlocked. All in lvl 20. Great Stats. One Save at the choice of Eirika or Ephraim."
+                             },
+                             {
+                                 "key":  "fe8",
+                                 "game":  "Fire Emblem: The Sacred Stones",
+                                 "archiveId":  "11485",
+                                 "fileName":  "fe8-11485.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe8-11485.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F11485.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe8-archive-description.txt",
+                                 "descriptionEntry":  "11485\r\nFrom code2004 (04/16/2006; 64KB)\r\nAt Chapter 11, Seth is REALLY strong (Lv20). About 10,000G. Eirika is lv13."
+                             },
+                             {
+                                 "key":  "fe8",
+                                 "game":  "Fire Emblem: The Sacred Stones",
+                                 "archiveId":  "10248",
+                                 "fileName":  "fe8-10248.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe8-10248.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F10248.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe8-archive-description.txt",
+                                 "descriptionEntry":  "10248\r\nFrom hdo (12/12/2005; 64KB)\r\nCompleted all missions. All high levels, no characters dead. No cheats used."
+                             },
+                             {
                                  "key":  "fe8",
                                  "game":  "Fire Emblem: The Sacred Stones",
                                  "archiveId":  "27399",
@@ -102,6 +951,83 @@
                                  "sourceType":  "archive-fallback",
                                  "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe8-archive-description.txt",
                                  "descriptionEntry":  "27399\r\nFrom Memo_rize (01/31/2021; 64KB)\r\nCreature campaign ready file. 250,000+ gold and legendary weapons. All characters base classes, need to get post game characters. 100% support log and sound room. Bonus content enabled in English!!"
+                             },
+                             {
+                                 "key":  "fe8",
+                                 "game":  "Fire Emblem: The Sacred Stones",
+                                 "archiveId":  "24608",
+                                 "fileName":  "fe8-24608.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe8-24608.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F24608.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe8-archive-description.txt",
+                                 "descriptionEntry":  "24608\r\nFrom DS977 (04/03/2016; 64KB)\r\nCreature Campaign started, all character have base class, level, stats, proficiency, gear and support. Seth has a stupidly high number of combats. Was cheated, but then all cheat effects were removed."
+                             },
+                             {
+                                 "key":  "fe8",
+                                 "game":  "Fire Emblem: The Sacred Stones",
+                                 "archiveId":  "8000",
+                                 "fileName":  "fe8-8000.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe8-8000.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F8000.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe8-archive-description.txt",
+                                 "descriptionEntry":  "8000\r\nFrom AjoraFlame (06/10/2005; 64KB)\r\nCreature Campaign. Three Maxed Stats Swordsmasters. About 290k of gold and legendary items are in good condition with an unused hammerne. Tower and Ruin finished once."
+                             },
+                             {
+                                 "key":  "fe8",
+                                 "game":  "Fire Emblem: The Sacred Stones",
+                                 "archiveId":  "9568",
+                                 "fileName":  "fe8-9568.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe8-9568.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F9568.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe8-archive-description.txt",
+                                 "descriptionEntry":  "9568\r\nFrom iamverydead (10/18/2005; 64KB)\r\nFirst file with Seth dead!"
+                             },
+                             {
+                                 "key":  "fe8",
+                                 "game":  "Fire Emblem: The Sacred Stones",
+                                 "archiveId":  "7999",
+                                 "fileName":  "fe8-7999.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe8-7999.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F7999.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe8-archive-description.txt",
+                                 "descriptionEntry":  "7999\r\nFrom AjoraFlame (06/10/2005; 64KB)\r\nFirst save, Eirika on world map, going to chapter 11. Marisa, a level 20/20 assassin."
+                             },
+                             {
+                                 "key":  "fe8",
+                                 "game":  "Fire Emblem: The Sacred Stones",
+                                 "archiveId":  "7737",
+                                 "fileName":  "fe8-7737.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe8-7737.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F7737.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe8-archive-description.txt",
+                                 "descriptionEntry":  "7737\r\nFrom Mykas0 (05/15/2005; 64KB)\r\nGame saved before chapter 9, Eirika\u0027s route."
+                             },
+                             {
+                                 "key":  "fe8",
+                                 "game":  "Fire Emblem: The Sacred Stones",
+                                 "archiveId":  "7814",
+                                 "fileName":  "fe8-7814.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe8-7814.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F7814.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe8-archive-description.txt",
+                                 "descriptionEntry":  "7814\r\nFrom scopelenz (05/27/2005; 64KB)\r\nJust before Eirika Chapter 8. High Franz status and good Eirika status. Nobody died yet. For people who want to get a head start. Lots of good items"
+                             },
+                             {
+                                 "key":  "fe8",
+                                 "game":  "Fire Emblem: The Sacred Stones",
+                                 "archiveId":  "7753",
+                                 "fileName":  "fe8-7753.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe8-7753.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F7753.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe8-archive-description.txt",
+                                 "descriptionEntry":  "7753\r\nFrom AjoraFlame (05/16/2005; 64KB)\r\nSound Room 95% Unlocked!"
                              }
                          ]
 }

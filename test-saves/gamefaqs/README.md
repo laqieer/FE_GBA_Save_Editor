@@ -14,17 +14,19 @@ Latest recorded attempt: `test-saves/gamefaqs/sources/download-metadata.json`
 
 ### GameFAQs access status
 
-All three requested page fetches and all three direct save download URLs returned HTTP `403 Forbidden` on `2026-07-06T12:27:25.3178813+08:00`. The blocked evidence is stored in `test-saves/gamefaqs/sources/download-metadata.json`.
+GameFAQs page and direct-save URLs are still probed on every run and currently return `403 Forbidden` in this environment. The script records all attempts in `test-saves/gamefaqs/sources/download-metadata.json`.
 
-### Selected deterministic fixtures
+### Downloaded fixture coverage
 
-| Local file | Requested page | Archive mirror | Notes |
-| --- | --- | --- | --- |
-| `fe6-17515.sps` | FE6 saves page | `Fire Emblem_ Fuuin no Tsurugi/.../17515.sps` | "All battle maps, all secret characters, One save on Beyond the Darkness and 2 other on Chapter 22". Retained for manual FE6 investigation only; it is not part of the automated checksum-valid fixture assertion because no reachable FE6 archive sample currently satisfies that bar. |
-| `fe7-10530.sps` | FE7 saves page | `Fire Emblem/.../10530.sps` | "Fire Emblem Save with all the characters and all the modes unlocked" |
-| `fe8-27399.sps` | FE8 saves page | `Fire Emblem_ Seima no Kouseki/.../27399.sps` | "Creature campaign ready file. 250,000+ gold and legendary weapons. All characters base classes, need to get post game characters. 100% support log and sound room. Bonus content enabled in English!!" |
+The downloader now fetches **all archive IDs listed in each title's Archive.org description** (not just one sample per game):
 
-Raw Archive.org description snapshots are stored under `test-saves/gamefaqs/sources/`.
+- FE6: all IDs from `sources/fe6-archive-description.txt` (`6` fixtures)
+- FE7: all IDs from `sources/fe7-archive-description.txt` (`11` fixtures)
+- FE8: all IDs from `sources/fe8-archive-description.txt` (`13` fixtures)
+
+Current fixture count: **30 `.sps` files** in `test-saves/gamefaqs/`.
+
+Raw description snapshots and per-URL probe evidence are stored under `test-saves/gamefaqs/sources/`.
 
 ## FE6 automation status
 
