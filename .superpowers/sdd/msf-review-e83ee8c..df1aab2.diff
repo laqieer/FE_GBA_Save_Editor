@@ -1,0 +1,166 @@
+# Review package: e83ee8c..df1aab2
+
+## Commits
+df1aab2 feat: add domain metadata to structured schema rows
+
+## Files changed
+ src/lib/blockSchema.ts           | 21 +++++++++++++--------
+ src/lib/structuredEditor.test.ts |  7 +++++++
+ src/lib/structuredEditor.ts      | 10 ++++++++++
+ 3 files changed, 30 insertions(+), 8 deletions(-)
+
+## Diff
+diff --git a/src/lib/blockSchema.ts b/src/lib/blockSchema.ts
+index 8b2f78c..295cad6 100644
+--- a/src/lib/blockSchema.ts
++++ b/src/lib/blockSchema.ts
+@@ -1,32 +1,37 @@
+ import type { GameCode } from './saveCodec'
+ 
+ export type FieldType = 'u8' | 's8' | 'u16' | 'u32' | 'bytes' | 'text'
+ 
++export type StructuredDomain = 'playState' | 'units' | 'inventory' | 'progressFlags' | 'technical'
++
+ export interface BlockFieldSchema {
+   key: string
+   offset: number
+   size: 1 | 2 | 4
+   byteLength: number
+   type: FieldType
+   labelKey: string
++  domain: StructuredDomain
++  groupKey: string
++  memberPath: string
+ }
+ 
+ export const PLAYST_FIELD_SCHEMA: readonly BlockFieldSchema[] = [
+-  { key: 'playst.gold', offset: 0x08, size: 4, byteLength: 4, type: 'u32', labelKey: 'field.playst.gold' },
+-  { key: 'playst.saveSlot', offset: 0x0c, size: 1, byteLength: 1, type: 'u8', labelKey: 'field.playst.saveSlot' },
+-  { key: 'playst.chapterIndex', offset: 0x0e, size: 1, byteLength: 1, type: 's8', labelKey: 'field.playst.chapterIndex' },
+-  { key: 'playst.chapterTurn', offset: 0x10, size: 2, byteLength: 2, type: 'u16', labelKey: 'field.playst.chapterTurn' },
+-  { key: 'playst.chapterStateBits', offset: 0x14, size: 1, byteLength: 1, type: 'u8', labelKey: 'field.playst.chapterStateBits' },
+-  { key: 'playst.playthroughId', offset: 0x18, size: 1, byteLength: 1, type: 'u8', labelKey: 'field.playst.playthroughId' },
+-  { key: 'playst.chapterMode', offset: 0x1b, size: 1, byteLength: 1, type: 'u8', labelKey: 'field.playst.chapterMode' },
+-  { key: 'playst.playerName', offset: 0x20, size: 1, byteLength: 0x0b, type: 'text', labelKey: 'field.playst.playerName' },
++  { key: 'playst.gold', offset: 0x08, size: 4, byteLength: 4, type: 'u32', labelKey: 'field.playst.gold', domain: 'playState', groupKey: 'playst', memberPath: 'gold' },
++  { key: 'playst.saveSlot', offset: 0x0c, size: 1, byteLength: 1, type: 'u8', labelKey: 'field.playst.saveSlot', domain: 'playState', groupKey: 'playst', memberPath: 'saveSlot' },
++  { key: 'playst.chapterIndex', offset: 0x0e, size: 1, byteLength: 1, type: 's8', labelKey: 'field.playst.chapterIndex', domain: 'playState', groupKey: 'playst', memberPath: 'chapterIndex' },
++  { key: 'playst.chapterTurn', offset: 0x10, size: 2, byteLength: 2, type: 'u16', labelKey: 'field.playst.chapterTurn', domain: 'playState', groupKey: 'playst', memberPath: 'chapterTurn' },
++  { key: 'playst.chapterStateBits', offset: 0x14, size: 1, byteLength: 1, type: 'u8', labelKey: 'field.playst.chapterStateBits', domain: 'playState', groupKey: 'playst', memberPath: 'chapterStateBits' },
++  { key: 'playst.playthroughId', offset: 0x18, size: 1, byteLength: 1, type: 'u8', labelKey: 'field.playst.playthroughId', domain: 'playState', groupKey: 'playst', memberPath: 'playthroughId' },
++  { key: 'playst.chapterMode', offset: 0x1b, size: 1, byteLength: 1, type: 'u8', labelKey: 'field.playst.chapterMode', domain: 'playState', groupKey: 'playst', memberPath: 'chapterMode' },
++  { key: 'playst.playerName', offset: 0x20, size: 1, byteLength: 0x0b, type: 'text', labelKey: 'field.playst.playerName', domain: 'playState', groupKey: 'playst', memberPath: 'playerName' },
+ ] as const
+ 
+ const EMPTY_BLOCK_SCHEMA: readonly BlockFieldSchema[] = []
+ const BLOCK_SCHEMA_BY_GAME: Readonly<Record<GameCode, Readonly<Partial<Record<number, readonly BlockFieldSchema[]>>>>> = {
+   FE6: {},
+   FE7: {},
+   FE8: {
+     0: PLAYST_FIELD_SCHEMA,
+     1: PLAYST_FIELD_SCHEMA,
+   },
+diff --git a/src/lib/structuredEditor.test.ts b/src/lib/structuredEditor.test.ts
+index 5233b73..0be8f1c 100644
+--- a/src/lib/structuredEditor.test.ts
++++ b/src/lib/structuredEditor.test.ts
+@@ -99,20 +99,27 @@ function buildSampleSave(gameCode: SampleGameCode = 'FE8'): File {
+     const blockSize = 0x0080
+     const blockBody = buf.slice(blockOffset, blockOffset + blockSize)
+     writeU32(buf, infoOffset + 0x0c, checksum32(blockBody))
+   }
+ 
+   writeU16(buf, 0x60, checksum16(buf.slice(0, 0x50)))
+   return new File([buf], 'structured.sav', { type: 'application/octet-stream' })
+ }
+ 
+ describe('structuredEditor', () => {
++  it('includes domain/group metadata on structured rows', async () => {
++    const parsed = await parseSaveFile(buildSampleSave('FE8'))
++    const row = getStructuredRows(parsed, 0)[0]
++    expect(row).toHaveProperty('domain')
++    expect(row).toHaveProperty('groupKey')
++    expect(row).toHaveProperty('memberPath')
++  })
+   it('returns known PlaySt rows for FE8 save and suspend blocks plus generic rows for unknown regions', async () => {
+     const parsed = await parseSaveFile(buildSampleSave())
+ 
+     const saveRows = getStructuredRows(parsed, 0)
+     const suspendRows = getStructuredRows(parsed, 1)
+     const archiveRows = getStructuredRows(parsed, 6)
+     const playerNameRow = saveRows.find((row) => row.labelKey === 'field.playst.playerName')
+     const genericSaveRows = saveRows.filter((row) => row.type === 'bytes')
+ 
+     expect(saveRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(true)
+diff --git a/src/lib/structuredEditor.ts b/src/lib/structuredEditor.ts
+index 4504e72..6e546a0 100644
+--- a/src/lib/structuredEditor.ts
++++ b/src/lib/structuredEditor.ts
+@@ -1,15 +1,19 @@
+ import { getBlockSchema, type BlockFieldSchema, type FieldType } from './blockSchema'
+ import { readBlockBytes, updateBlockBytes, type ParsedSaveFile } from './saveCodec'
+ 
+ export type FieldRow = {
+   key: string
++  domain: import('./blockSchema').StructuredDomain
++  groupKey: string
++  memberPath: string
++  unitIndex?: number
+   offset: number
+   size: number
+   type: FieldType
+   labelKey: string
+   value: number | string
+ }
+ 
+ type ResolvedFieldRow = FieldRow & {
+   byteLength: number
+ }
+@@ -69,20 +73,23 @@ function readValue(bytes: Uint8Array, field: BlockFieldSchema): number | string
+     case 'text':
+       return readFixedString(bytes, field.offset, field.byteLength)
+     case 'bytes':
+       return toHexString(bytes.slice(field.offset, field.offset + field.byteLength))
+   }
+ }
+ 
+ function buildKnownRows(bytes: Uint8Array, fields: readonly BlockFieldSchema[]): ResolvedFieldRow[] {
+   return fields.map((field) => ({
+     key: field.key,
++    domain: field.domain,
++    groupKey: field.groupKey,
++    memberPath: field.memberPath,
+     offset: field.offset,
+     size: field.byteLength,
+     byteLength: field.byteLength,
+     type: field.type,
+     labelKey: field.labelKey,
+     value: readValue(bytes, field),
+   }))
+ }
+ 
+ function buildGenericRows(bytes: Uint8Array, coveredOffsets: Set<number>): ResolvedFieldRow[] {
+@@ -98,20 +105,23 @@ function buildGenericRows(bytes: Uint8Array, coveredOffsets: Set<number>): Resol
+       chunkEnd < bytes.length &&
+       !coveredOffsets.has(chunkEnd) &&
+       chunkEnd - offset < GENERIC_ROW_CHUNK_SIZE
+     ) {
+       chunkEnd += 1
+     }
+ 
+     const byteLength = chunkEnd - offset
+     rows.push({
+       key: `bytes.${offset.toString(16).padStart(4, '0')}`,
++      domain: 'technical',
++      groupKey: 'unknown',
++      memberPath: `bytes.${offset.toString(16).padStart(4, '0')}`,
+       offset,
+       size: byteLength,
+       byteLength,
+       type: 'bytes',
+       labelKey: byteLength === 1 ? 'field.unknown.byte' : 'field.unknown.bytes',
+       value: toHexString(bytes.slice(offset, chunkEnd)),
+     })
+     offset = chunkEnd
+   }
+   return rows

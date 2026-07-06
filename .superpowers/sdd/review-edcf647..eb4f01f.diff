@@ -1,0 +1,1665 @@
+# Review package: edcf647..eb4f01f
+
+## Commits
+eb4f01f feat: add synchronized structured and hex block editors
+
+## Files changed
+ .superpowers/sdd/task-4-report.md       |  89 +++++++++++++++
+ src/App.css                             | 143 +++++++++++++++++++++++-
+ src/App.tsx                             | 166 ++++++++++------------------
+ src/components/BlockEditorTabs.tsx      |  81 ++++++++++++++
+ src/components/BlockHexEditor.tsx       | 189 ++++++++++++++++++++++++++++++++
+ src/components/BlockStructuredTable.tsx | 179 ++++++++++++++++++++++++++++++
+ src/i18n.ts                             |  84 ++++++++++++++
+ src/lib/editorDraftState.test.ts        | 107 ++++++++++++++++++
+ src/lib/editorDraftState.ts             |  46 ++++++++
+ src/lib/editorState.test.ts             |  66 ++++++++++-
+ src/lib/editorState.ts                  |  31 ++++++
+ src/lib/structuredEditor.test.ts        |   2 +
+ src/lib/structuredEditor.ts             |   4 +-
+ 13 files changed, 1071 insertions(+), 116 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/task-4-report.md b/.superpowers/sdd/task-4-report.md
+new file mode 100644
+index 0000000..d558e0d
+--- /dev/null
++++ b/.superpowers/sdd/task-4-report.md
+@@ -0,0 +1,89 @@
++# Task 4 Implementation Report
++
++## Summary
++Implemented the Task 4 block editor replacement on `copilot/task1-generic-block-codec` by replacing the old four-field form with synchronized Structured and Hex editors. All valid blocks are now selectable/editable through the tabbed UI, edits flow through canonical parsed bytes, and checksum regeneration stays centralized in the codec layer.
++
++## Requirements Coverage
++- Replaced the old editor in `src/App.tsx` with a tabbed block editor surface.
++- Added `src/components/BlockStructuredTable.tsx` for structured row editing.
++- Added `src/components/BlockHexEditor.tsx` for byte-wise hex editing.
++- Added `src/components/BlockEditorTabs.tsx` to keep both editors synchronized from shared parsed state.
++- Updated `src/App.css` for the new editor layout, tables, tabs, and inline validation styles.
++- Updated `src/i18n.ts` with tab labels, field labels, action labels, and validation/error copy in `en`, `ja`, and `zh`.
++- Preserved stable selection by continuing to use `resolveEditorState` and by not forcing post-edit block jumps.
++- Ensured invalid input does not mutate canonical bytes by keeping draft/error state local to the editor components and only calling codec/editor mutators on explicit apply/blur actions.
++- Kept checksum correctness by routing successful edits through `applyStructuredEdit`, `applyHexEdit`, and `updateBlockBytes`.
++
++## TDD / Test Work
++### Red-Green cycle 1: all-block editable mode
++- Extended `src/lib/editorState.test.ts` with coverage for generic all-block editing.
++- Verified the new test failed before implementing the editable-block resolution helper changes.
++- Implemented present-block filtering in `src/lib/editorState.ts` so all valid blocks remain editable while absent blocks stay read-only.
++- Re-ran the targeted test to green.
++
++### Red-Green cycle 2: draft reconciliation
++- Added `src/lib/editorDraftState.test.ts` for draft/error reconciliation behavior.
++- Verified failures before implementation.
++- Added `src/lib/editorDraftState.ts` and wired both editor components to preserve unrelated dirty drafts after successful edits while resetting state on block changes.
++- Re-ran the new targeted tests to green.
++
++### Red-Green cycle 3: structured size display
++- Extended `src/lib/structuredEditor.test.ts` to assert multi-byte/text fields show their real byte width.
++- Verified the test failed before the production change.
++- Updated `src/lib/structuredEditor.ts` to expose actual byte length in row size metadata.
++- Re-ran the targeted test to green.
++
++## Implementation Notes
++### `src/App.tsx`
++- Removed the legacy gold/chapter/name form state.
++- Switched editable block resolution to the new helper so all present blocks are handled.
++- Added `BlockEditorTabs` integration and kept download/export behavior intact.
++- Default selection now prefers the first editable/present block on load.
++
++### `src/components/BlockStructuredTable.tsx`
++- Renders structured rows with offset/type/size/value/action columns.
++- Holds draft input + inline validation errors in component state.
++- Applies edits explicitly per row and leaves invalid drafts local.
++
++### `src/components/BlockHexEditor.tsx`
++- Renders canonical bytes as grouped hex rows with ASCII preview.
++- Tracks per-byte drafts and inline errors locally.
++- Applies edits on blur / Enter, with invalid hex staying local until corrected.
++
++### `src/components/BlockEditorTabs.tsx`
++- Derives structured rows and block bytes from the same parsed state.
++- Keeps both tab panels mounted so switching tabs does not discard in-progress drafts/errors.
++- Routes successful edits back to the parent through canonical parsed state updates.
++
++### `src/lib/editorDraftState.ts`
++- Centralizes draft/error reconciliation logic used by both editors.
++- Preserves dirty state only within the same block and resets on block changes.
++
++### `src/lib/editorState.ts`
++- Added editable-block resolution based on present/valid block metadata instead of save/suspend-only logic.
++
++### `src/lib/structuredEditor.ts`
++- Row size now reflects actual byte width so text/byte fields display accurate sizes.
++
++## Review / Bug Fix Follow-ups
++Ran iterative code review during implementation and fixed:
++- crash risk when selecting absent blocks,
++- loss of unrelated dirty drafts after successful applies,
++- draft leakage across block switches,
++- incorrect displayed byte width for multi-byte fields,
++- tab switches discarding in-progress draft/error state.
++
++## Verification Evidence
++Passed:
++- `npm run test:run -- src/lib/editorState.test.ts`
++- `npm run test:run -- src/lib/editorState.test.ts src/lib/editorDraftState.test.ts`
++- `npm run test:run -- src/lib/editorDraftState.test.ts src/lib/structuredEditor.test.ts`
++- `npm run test:run -- src/lib/editorState.test.ts src/lib/hexEditor.test.ts src/lib/structuredEditor.test.ts src/lib/blockCodec.test.ts src/lib/saveCodec.test.ts src/lib/editorDraftState.test.ts`
++- `npm run test:run -- src/lib/editorState.test.ts src/lib/hexEditor.test.ts src/lib/structuredEditor.test.ts src/lib/blockCodec.test.ts src/lib/saveCodec.test.ts`
++- `npm run build`
++
++Final fresh verification before commit:
++- `npm run test:run -- src/lib/editorState.test.ts src/lib/hexEditor.test.ts src/lib/structuredEditor.test.ts src/lib/blockCodec.test.ts src/lib/saveCodec.test.ts`
++- `npm run build`
++
++Both final commands passed successfully.
+diff --git a/src/App.css b/src/App.css
+index 47f509a..fa2d006 100644
+--- a/src/App.css
++++ b/src/App.css
+@@ -1,15 +1,17 @@
+ .app {
+   display: flex;
+   flex-direction: column;
+   gap: 1rem;
+   padding: 1rem;
++  max-width: 1440px;
++  margin: 0 auto;
+ }
+ 
+ .app-header,
+ .toolbar,
+ .footer {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   gap: 0.75rem;
+ }
+@@ -41,71 +43,202 @@
+ }
+ 
+ .card {
+   background: #ffffff;
+   border: 1px solid #d7deea;
+   border-radius: 0.75rem;
+   padding: 1rem;
+   display: flex;
+   flex-direction: column;
+   gap: 0.6rem;
++  min-width: 0;
+ }
+ 
+ .card:nth-child(1) {
+   grid-column: span 4;
+ }
+ 
+-.card:nth-child(2) {
+-  grid-column: span 4;
++.editor-card {
++  grid-column: span 8;
+ }
+ 
+ .table-card {
+-  grid-column: span 4;
++  grid-column: span 12;
+ }
+ 
+ label {
+   display: flex;
+   flex-direction: column;
+   gap: 0.3rem;
+ }
+ 
+ input,
+ select,
+ button {
+   font: inherit;
+   border-radius: 0.4rem;
+   border: 1px solid #c7cfde;
+   padding: 0.45rem 0.6rem;
++  background: #ffffff;
+ }
+ 
+ .button-row {
+   display: flex;
+   gap: 0.5rem;
+   flex-wrap: wrap;
+ }
+ 
++button {
++  cursor: pointer;
++}
++
++button:disabled {
++  cursor: not-allowed;
++  opacity: 0.65;
++}
++
++.card-heading {
++  display: flex;
++  justify-content: space-between;
++  gap: 1rem;
++  align-items: flex-start;
++  flex-wrap: wrap;
++}
++
++.metadata-line,
++.muted {
++  margin: 0;
++}
++
++.muted {
++  color: #59657c;
++}
++
++.block-editor {
++  display: flex;
++  flex-direction: column;
++  gap: 0.75rem;
++}
++
++.tab-list {
++  display: flex;
++  gap: 0.5rem;
++  flex-wrap: wrap;
++  border-bottom: 1px solid #e6ebf4;
++  padding-bottom: 0.5rem;
++}
++
++.tab-button {
++  background: #f3f6fc;
++  color: #27324a;
++}
++
++.tab-button.is-active {
++  background: #225cff;
++  border-color: #225cff;
++  color: #ffffff;
++}
++
++.table-wrapper {
++  overflow: auto;
++  border: 1px solid #e6ebf4;
++  border-radius: 0.75rem;
++}
++
++.editor-table {
++  width: 100%;
++  min-width: 720px;
++}
++
++.editor-table th {
++  background: #f8faff;
++}
++
++.editor-table th,
++.editor-table td {
++  vertical-align: top;
++}
++
++.mono {
++  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
++}
++
++.field-input-group {
++  display: flex;
++  flex-direction: column;
++  gap: 0.3rem;
++}
++
++.field-input {
++  min-width: 12rem;
++  width: 100%;
++}
++
++.row-actions {
++  white-space: nowrap;
++}
++
++.inline-error {
++  margin: 0;
++  color: #bb1c1c;
++  font-size: 0.85rem;
++}
++
++.input-error {
++  border-color: #bb1c1c;
++  box-shadow: 0 0 0 1px #bb1c1c inset;
++}
++
++.hex-row-cells {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 0.4rem;
++}
++
++.hex-input {
++  width: 3.5rem;
++  text-transform: uppercase;
++}
++
++.hex-error-list {
++  margin: 0.5rem 0 0;
++  padding-left: 1.2rem;
++  color: #bb1c1c;
++  font-size: 0.85rem;
++}
++
++.hex-ascii {
++  white-space: pre;
++}
++
+ table {
+   width: 100%;
+   border-collapse: collapse;
+   font-size: 0.9rem;
+ }
+ 
+ th,
+ td {
+   border-bottom: 1px solid #e6ebf4;
+   text-align: left;
+   padding: 0.35rem 0.25rem;
+ }
+ 
+ .links {
+   display: flex;
+   gap: 0.8rem;
+   flex-wrap: wrap;
+ }
+ 
+-@media (max-width: 960px) {
++@media (max-width: 1180px) {
+   .card:nth-child(1),
+-  .card:nth-child(2),
++  .editor-card,
+   .table-card {
+     grid-column: span 12;
+   }
+ }
++
++@media (max-width: 960px) {
++  .editor-table {
++    min-width: 640px;
++  }
++}
+diff --git a/src/App.tsx b/src/App.tsx
+index a062f56..737ffce 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,110 +1,69 @@
+-import { useEffect, useMemo, useState } from 'react'
++import { useMemo, useState } from 'react'
+ import { useTranslation } from 'react-i18next'
+ import {
+   parseSaveFile,
++  readBlockBytes,
+   serializeSaveFile,
+-  updatePlayState,
+   type ParsedSaveFile,
+ } from './lib/saveCodec'
+ import { isSupportedSaveFile } from './lib/fileValidation'
+-import { resolveEditorState } from './lib/editorState'
++import {
++  getEditableBlockIndexes,
++  resolveEditorState,
++} from './lib/editorState'
++import { BlockEditorTabs } from './components/BlockEditorTabs'
+ import './App.css'
+ 
+-type EditModel = {
+-  gold: string
+-  chapterIndex: string
+-  chapterTurn: string
+-  playerName: string
+-}
+-
+ function App() {
+   const { t, i18n } = useTranslation()
+   const [parsed, setParsed] = useState<ParsedSaveFile | null>(null)
+   const [selectedBlock, setSelectedBlock] = useState(0)
+   const [status, setStatus] = useState('')
+   const [error, setError] = useState('')
+-  const [edit, setEdit] = useState<EditModel>({
+-    gold: '',
+-    chapterIndex: '',
+-    chapterTurn: '',
+-    playerName: '',
+-  })
+-
+-  const editableBlocks = useMemo(
+-    () => parsed?.blocks.filter((x) => (x.kind === 0 || x.kind === 1) && x.playState) ?? [],
+-    [parsed],
+-  )
+   const editableIndexes = useMemo(
+-    () => editableBlocks.map((x) => x.index),
+-    [editableBlocks],
++    () => (parsed ? getEditableBlockIndexes(parsed) : []),
++    [parsed],
+   )
+   const editorState = useMemo(
+     () => resolveEditorState(selectedBlock, editableIndexes),
+     [selectedBlock, editableIndexes],
+   )
+-
+-  useEffect(() => {
+-    const target = editableBlocks.find((x) => x.index === editorState.editingBlock)
+-    if (!target?.playState) {
+-      return
+-    }
+-    setEdit({
+-      gold: String(target.playState.gold),
+-      chapterIndex: String(target.playState.chapterIndex),
+-      chapterTurn: String(target.playState.chapterTurn),
+-      playerName: target.playState.playerName,
+-    })
+-  }, [editableBlocks, editorState.editingBlock])
++  const selectedBlockView = useMemo(
++    () => parsed?.blocks.find((block) => block.index === editorState.selectedBlock) ?? null,
++    [editorState.selectedBlock, parsed],
++  )
+ 
+   async function onFileChange(file?: File) {
+     if (!file) return
+     setStatus('')
+     setError('')
+     if (!isSupportedSaveFile(file.name)) {
+       setParsed(null)
+       setError(t('invalidFileType'))
+       return
+     }
+     try {
+       const next = await parseSaveFile(file)
+       setParsed(next)
+-      const first = next.blocks.find((x) => (x.kind === 0 || x.kind === 1) && x.playState)
+-      setSelectedBlock(first?.index ?? 0)
+-      if (!first) {
+-        setStatus(t('noEditableBlock'))
+-      }
++      const editableBlockIndexes = getEditableBlockIndexes(next)
++      setSelectedBlock(editableBlockIndexes[0] ?? next.blocks[0]?.index ?? 0)
+     } catch {
+       setParsed(null)
+       setError(t('loadError'))
+     }
+   }
+ 
+-  function onApplyEdits() {
+-    if (!parsed) return
+-    if (editorState.editingBlock === null) {
+-      setError(t('blockReadOnly'))
+-      return
+-    }
+-    try {
+-      const next = updatePlayState(parsed, editorState.editingBlock, {
+-        gold: Number(edit.gold),
+-        chapterIndex: Number(edit.chapterIndex),
+-        chapterTurn: Number(edit.chapterTurn),
+-        playerName: edit.playerName,
+-      })
+-      setParsed(next)
+-      setStatus(t('updated'))
+-      setError('')
+-    } catch (e) {
+-      setError(e instanceof Error ? e.message : t('loadError'))
+-    }
++  function onParsedChange(next: ParsedSaveFile) {
++    setParsed(next)
++    setStatus(t('updated'))
++    setError('')
+   }
+ 
+   function onDownload() {
+     if (!parsed) return
+     const bytes = serializeSaveFile(parsed)
+     const blob = new Blob([Uint8Array.from(bytes).buffer], {
+       type: 'application/octet-stream',
+     })
+     const url = URL.createObjectURL(blob)
+     const a = document.createElement('a')
+@@ -115,20 +74,32 @@ function App() {
+   }
+ 
+   function blockKindLabel(kind: number) {
+     if (kind === 0) return t('blockKind0')
+     if (kind === 1) return t('blockKind1')
+     if (kind === 2) return t('blockKind2')
+     if (kind === 3) return t('blockKind3')
+     return t('blockKindOther')
+   }
+ 
++  function selectedBlockChecksumLabel() {
++    if (!parsed || editorState.editingBlock === null) {
++      return t('invalid')
++    }
++    try {
++      readBlockBytes(parsed, editorState.editingBlock)
++      return selectedBlockView?.checksumValid ? t('valid') : t('invalid')
++    } catch {
++      return t('invalid')
++    }
++  }
++
+   return (
+     <main className="app">
+       <header className="app-header">
+         <div>
+           <h1>{t('title')}</h1>
+           <p>{t('subtitle')}</p>
+         </div>
+         <select value={i18n.language} onChange={(e) => i18n.changeLanguage(e.target.value)}>
+           <option value="en">English</option>
+           <option value="ja">日本語</option>
+@@ -143,86 +114,65 @@ function App() {
+         </label>
+       </section>
+ 
+       {status && <p className="status">{status}</p>}
+       {error && <p className="error">{error}</p>}
+ 
+       {parsed && (
+         <section className="content-grid">
+           <div className="card">
+             <h2>{t('metadata')}</h2>
+-            <p>
++            <p className="metadata-line">
+               {t('game')}: <strong>{parsed.gameCode}</strong> · {t('metadata')}:{' '}
+               <strong>{parsed.metadataName || 'N/A'}</strong>
+             </p>
+-            <p>
++            <p className="metadata-line">
+               {t('generalChecksum')}: <strong>{parsed.generalChecksumValid ? t('valid') : t('invalid')}</strong>
+             </p>
+             <label>
+               {t('slot')}
+               <select value={selectedBlock} onChange={(e) => setSelectedBlock(Number(e.target.value))}>
+                 {parsed.blocks.map((block) => (
+                   <option key={block.index} value={block.index}>
+                     #{block.index} · {blockKindLabel(block.kind)}
+                   </option>
+                 ))}
+               </select>
+             </label>
+           </div>
+ 
+-          <div className="card">
+-            <h2>{t('slot')} #{selectedBlock}</h2>
+-            {editorState.editingBlock === null && <p>{t('blockReadOnly')}</p>}
+-            <label>
+-              {t('gold')}
+-              <input
+-                disabled={editorState.editingBlock === null}
+-                value={edit.gold}
+-                onChange={(e) => setEdit((v) => ({ ...v, gold: e.target.value }))}
+-              />
+-            </label>
+-            <label>
+-              {t('chapter')}
+-              <input
+-                disabled={editorState.editingBlock === null}
+-                value={edit.chapterIndex}
+-                onChange={(e) => setEdit((v) => ({ ...v, chapterIndex: e.target.value }))}
+-              />
+-            </label>
+-            <label>
+-              {t('turn')}
+-              <input
+-                disabled={editorState.editingBlock === null}
+-                value={edit.chapterTurn}
+-                onChange={(e) => setEdit((v) => ({ ...v, chapterTurn: e.target.value }))}
+-              />
+-            </label>
+-            <label>
+-              {t('playerName')}
+-              <input
+-                disabled={editorState.editingBlock === null}
+-                value={edit.playerName}
+-                onChange={(e) => setEdit((v) => ({ ...v, playerName: e.target.value }))}
+-              />
+-            </label>
+-            <div className="button-row">
+-              <button
+-                type="button"
+-                disabled={editorState.editingBlock === null}
+-                onClick={onApplyEdits}
+-              >
+-                {t('apply')}
+-              </button>
+-              <button type="button" onClick={onDownload}>
+-                {t('download')}
+-              </button>
++          <div className="card editor-card">
++            <div className="card-heading">
++              <div>
++                <h2>{t('blockEditor')}</h2>
++                {selectedBlockView && (
++                  <p className="muted">
++                    {t('slot')} #{selectedBlockView.index} · {blockKindLabel(selectedBlockView.kind)} · {t('checksum')}:{' '}
++                    <strong>{selectedBlockChecksumLabel()}</strong>
++                  </p>
++                )}
++              </div>
++              <div className="button-row">
++                <button type="button" onClick={onDownload}>
++                  {t('download')}
++                </button>
++              </div>
+             </div>
++            {editorState.editingBlock === null ? (
++              <p>{t('blockReadOnly')}</p>
++            ) : (
++              <BlockEditorTabs
++                parsed={parsed}
++                blockIndex={editorState.editingBlock}
++                onParsedChange={onParsedChange}
++              />
++            )}
+           </div>
+ 
+           <div className="card table-card">
+             <h2>{t('slot')} {t('metadata')}</h2>
+             <table>
+               <thead>
+                 <tr>
+                   <th>{t('slot')}</th>
+                   <th>{t('kind')}</th>
+                   <th>{t('offset')}</th>
+diff --git a/src/components/BlockEditorTabs.tsx b/src/components/BlockEditorTabs.tsx
+new file mode 100644
+index 0000000..dba3022
+--- /dev/null
++++ b/src/components/BlockEditorTabs.tsx
+@@ -0,0 +1,81 @@
++import { useMemo, useState } from 'react'
++import { useTranslation } from 'react-i18next'
++import { applyHexEdit } from '../lib/hexEditor'
++import { readBlockBytes, type ParsedSaveFile } from '../lib/saveCodec'
++import { applyStructuredEdit, getStructuredRows } from '../lib/structuredEditor'
++import { BlockHexEditor } from './BlockHexEditor'
++import { BlockStructuredTable } from './BlockStructuredTable'
++
++type BlockEditorTabsProps = {
++  parsed: ParsedSaveFile
++  blockIndex: number
++  onParsedChange: (next: ParsedSaveFile) => void
++}
++
++type EditorTab = 'structured' | 'hex'
++
++export function BlockEditorTabs({
++  parsed,
++  blockIndex,
++  onParsedChange,
++}: BlockEditorTabsProps) {
++  const { t } = useTranslation()
++  const [activeTab, setActiveTab] = useState<EditorTab>('structured')
++
++  const structuredRows = useMemo(
++    () => getStructuredRows(parsed, blockIndex),
++    [parsed, blockIndex],
++  )
++  const blockBytes = useMemo(
++    () => readBlockBytes(parsed, blockIndex),
++    [parsed, blockIndex],
++  )
++
++  function handleStructuredEdit(rowKey: string, nextValue: string) {
++    onParsedChange(applyStructuredEdit(parsed, blockIndex, rowKey, nextValue))
++  }
++
++  function handleHexEdit(absoluteByteOffset: number, nextHexPair: string) {
++    onParsedChange(applyHexEdit(parsed, blockIndex, absoluteByteOffset, nextHexPair))
++  }
++
++  return (
++    <section className="block-editor">
++      <div className="tab-list" role="tablist" aria-label={t('blockEditor')}>
++        <button
++          type="button"
++          role="tab"
++          aria-selected={activeTab === 'structured'}
++          className={`tab-button ${activeTab === 'structured' ? 'is-active' : ''}`}
++          onClick={() => setActiveTab('structured')}
++        >
++          {t('structuredTab')}
++        </button>
++        <button
++          type="button"
++          role="tab"
++          aria-selected={activeTab === 'hex'}
++          className={`tab-button ${activeTab === 'hex' ? 'is-active' : ''}`}
++          onClick={() => setActiveTab('hex')}
++        >
++          {t('hexTab')}
++        </button>
++      </div>
++
++      <div role="tabpanel" hidden={activeTab !== 'structured'}>
++        <BlockStructuredTable
++          blockKey={blockIndex}
++          rows={structuredRows}
++          onApplyEdit={handleStructuredEdit}
++        />
++      </div>
++      <div role="tabpanel" hidden={activeTab !== 'hex'}>
++        <BlockHexEditor
++          blockKey={blockIndex}
++          blockBytes={blockBytes}
++          onApplyEdit={handleHexEdit}
++        />
++      </div>
++    </section>
++  )
++}
+diff --git a/src/components/BlockHexEditor.tsx b/src/components/BlockHexEditor.tsx
+new file mode 100644
+index 0000000..30a02cd
+--- /dev/null
++++ b/src/components/BlockHexEditor.tsx
+@@ -0,0 +1,189 @@
++import { useEffect, useMemo, useRef, useState } from 'react'
++import { useTranslation } from 'react-i18next'
++import {
++  reconcileDraftErrors,
++  reconcileDraftValues,
++} from '../lib/editorDraftState'
++import { toHexRows } from '../lib/hexEditor'
++
++type BlockHexEditorProps = {
++  blockKey: number
++  blockBytes: Uint8Array
++  onApplyEdit: (absoluteByteOffset: number, nextHexPair: string) => void
++}
++
++function formatOffset(offset: number): string {
++  return `0x${offset.toString(16).toUpperCase().padStart(4, '0')}`
++}
++
++function toErrorKey(error: unknown): string {
++  if (!(error instanceof Error)) {
++    return 'editorUnknownError'
++  }
++  if (error.message === 'Invalid hex byte') {
++    return 'hexEditor.invalidByte'
++  }
++  return error.message
++}
++
++export function BlockHexEditor({
++  blockKey,
++  blockBytes,
++  onApplyEdit,
++}: BlockHexEditorProps) {
++  const { t } = useTranslation()
++  const rows = useMemo(() => toHexRows(blockBytes), [blockBytes])
++  const canonicalValues = useMemo(() => {
++    const nextValues: Record<number, string> = {}
++    for (const row of rows) {
++      for (let columnIndex = 0; columnIndex < row.hex.length; columnIndex += 1) {
++        nextValues[row.rowOffset + columnIndex] = row.hex[columnIndex]
++      }
++    }
++    return nextValues
++  }, [rows])
++  const previousCanonicalValues = useRef(canonicalValues)
++  const previousBlockKey = useRef(blockKey)
++  const [state, setState] = useState<{
++    drafts: Record<number, string>
++    errors: Record<number, string>
++  }>({
++    drafts: canonicalValues,
++    errors: {},
++  })
++
++  useEffect(() => {
++    setState((current) => {
++      const preserveDirtyState = previousBlockKey.current === blockKey
++      const nextState = {
++        drafts: reconcileDraftValues(
++          current.drafts,
++          previousCanonicalValues.current,
++          canonicalValues,
++          preserveDirtyState,
++        ),
++        errors: reconcileDraftErrors(
++          current.errors,
++          current.drafts,
++          previousCanonicalValues.current,
++          canonicalValues,
++          preserveDirtyState,
++        ),
++      }
++      previousCanonicalValues.current = canonicalValues
++      previousBlockKey.current = blockKey
++      return nextState
++    })
++  }, [blockKey, canonicalValues])
++
++  function clearError(offset: number) {
++    setState((current) => {
++      if (!(offset in current.errors)) {
++        return current
++      }
++      const next = { ...current.errors }
++      delete next[offset]
++      return {
++        ...current,
++        errors: next,
++      }
++    })
++  }
++
++  function applyOffset(offset: number) {
++    const nextHexPair = (state.drafts[offset] ?? '').trim().toUpperCase()
++    try {
++      onApplyEdit(offset, nextHexPair)
++      clearError(offset)
++    } catch (error) {
++      setState((current) => ({
++        ...current,
++        errors: {
++          ...current.errors,
++          [offset]: t(toErrorKey(error), {
++            defaultValue: error instanceof Error ? error.message : t('editorUnknownError'),
++          }),
++        },
++      }))
++    }
++  }
++
++  return (
++    <div className="table-wrapper">
++      <table className="editor-table">
++        <thead>
++          <tr>
++            <th>{t('offset')}</th>
++            <th>{t('hexEditor.hex')}</th>
++            <th>{t('ascii')}</th>
++          </tr>
++        </thead>
++        <tbody>
++          {rows.map((row) => {
++            const rowErrors = row.hex.flatMap((_, columnIndex) => {
++              const byteOffset = row.rowOffset + columnIndex
++              const message = state.errors[byteOffset]
++              return message
++                ? [{ byteOffset, message }]
++                : []
++            })
++
++            return (
++              <tr key={row.rowOffset}>
++                <td className="mono">{formatOffset(row.rowOffset)}</td>
++                <td>
++                  <div className="hex-row-cells">
++                    {row.hex.map((hexPair, columnIndex) => {
++                      const byteOffset = row.rowOffset + columnIndex
++                      const error = state.errors[byteOffset]
++
++                      return (
++                        <input
++                          key={byteOffset}
++                          className={`hex-input mono ${error ? 'input-error' : ''}`}
++                          aria-label={`${t('hexEditor.hex')} ${formatOffset(byteOffset)}`}
++                          inputMode="text"
++                          spellCheck={false}
++                          maxLength={2}
++                          value={state.drafts[byteOffset] ?? hexPair}
++                          onChange={(event) => {
++                            const nextValue = event.target.value.toUpperCase().replace(/\s+/g, '').slice(0, 2)
++                            setState((current) => ({
++                              ...current,
++                              drafts: {
++                                ...current.drafts,
++                                [byteOffset]: nextValue,
++                              },
++                            }))
++                            clearError(byteOffset)
++                          }}
++                          onBlur={() => applyOffset(byteOffset)}
++                          onKeyDown={(event) => {
++                            if (event.key === 'Enter') {
++                              event.preventDefault()
++                              applyOffset(byteOffset)
++                            }
++                          }}
++                        />
++                      )
++                    })}
++                  </div>
++                  {rowErrors.length > 0 && (
++                    <ul className="hex-error-list">
++                      {rowErrors.map(({ byteOffset, message }) => (
++                        <li key={byteOffset}>
++                          <span className="mono">{formatOffset(byteOffset)}</span>: {message}
++                        </li>
++                      ))}
++                    </ul>
++                  )}
++                </td>
++                <td className="mono hex-ascii">{row.ascii}</td>
++              </tr>
++            )
++          })}
++        </tbody>
++      </table>
++    </div>
++  )
++}
+diff --git a/src/components/BlockStructuredTable.tsx b/src/components/BlockStructuredTable.tsx
+new file mode 100644
+index 0000000..df8a844
+--- /dev/null
++++ b/src/components/BlockStructuredTable.tsx
+@@ -0,0 +1,179 @@
++import { useEffect, useMemo, useRef, useState } from 'react'
++import { useTranslation } from 'react-i18next'
++import {
++  reconcileDraftErrors,
++  reconcileDraftValues,
++} from '../lib/editorDraftState'
++import type { FieldRow } from '../lib/structuredEditor'
++
++type BlockStructuredTableProps = {
++  blockKey: number
++  rows: FieldRow[]
++  onApplyEdit: (rowKey: string, nextValue: string) => void
++}
++
++function formatRowValue(value: number | string): string {
++  return String(value)
++}
++
++function formatOffset(offset: number): string {
++  return `0x${offset.toString(16).toUpperCase().padStart(4, '0')}`
++}
++
++function formatTypeLabel(type: FieldRow['type']): string {
++  return type === 'bytes' ? 'HEX' : type.toUpperCase()
++}
++
++function toTranslatedError(
++  t: (key: string, options?: Record<string, unknown>) => string,
++  error: unknown,
++): string {
++  if (error instanceof Error) {
++    return t(error.message, { defaultValue: error.message })
++  }
++  return t('editorUnknownError')
++}
++
++export function BlockStructuredTable({
++  blockKey,
++  rows,
++  onApplyEdit,
++}: BlockStructuredTableProps) {
++  const { t } = useTranslation()
++  const canonicalValues = useMemo(
++    () =>
++      Object.fromEntries(
++        rows.map((row) => [row.key, formatRowValue(row.value)]),
++      ) as Record<string, string>,
++    [rows],
++  )
++  const previousCanonicalValues = useRef(canonicalValues)
++  const previousBlockKey = useRef(blockKey)
++  const [state, setState] = useState<{
++    drafts: Record<string, string>
++    errors: Record<string, string>
++  }>({
++    drafts: canonicalValues,
++    errors: {},
++  })
++
++  useEffect(() => {
++    setState((current) => {
++      const preserveDirtyState = previousBlockKey.current === blockKey
++      const nextState = {
++        drafts: reconcileDraftValues(
++          current.drafts,
++          previousCanonicalValues.current,
++          canonicalValues,
++          preserveDirtyState,
++        ),
++        errors: reconcileDraftErrors(
++          current.errors,
++          current.drafts,
++          previousCanonicalValues.current,
++          canonicalValues,
++          preserveDirtyState,
++        ),
++      }
++      previousCanonicalValues.current = canonicalValues
++      previousBlockKey.current = blockKey
++      return nextState
++    })
++  }, [blockKey, canonicalValues])
++
++  function clearError(rowKey: string) {
++    setState((current) => {
++      if (!(rowKey in current.errors)) {
++        return current
++      }
++      const next = { ...current.errors }
++      delete next[rowKey]
++      return {
++        ...current,
++        errors: next,
++      }
++    })
++  }
++
++  function applyRow(rowKey: string) {
++    const nextValue = state.drafts[rowKey] ?? canonicalValues[rowKey] ?? ''
++    try {
++      onApplyEdit(rowKey, nextValue)
++      clearError(rowKey)
++    } catch (error) {
++      setState((current) => ({
++        ...current,
++        errors: {
++          ...current.errors,
++          [rowKey]: toTranslatedError(t, error),
++        },
++      }))
++    }
++  }
++
++  return (
++    <div className="table-wrapper">
++      <table className="editor-table">
++        <thead>
++          <tr>
++            <th>{t('offset')}</th>
++            <th>{t('field')}</th>
++            <th>{t('type')}</th>
++            <th>{t('size')}</th>
++            <th>{t('value')}</th>
++            <th>{t('actions')}</th>
++          </tr>
++        </thead>
++        <tbody>
++          {rows.map((row) => {
++            const fieldLabel = t(row.labelKey, { defaultValue: row.labelKey })
++            const error = state.errors[row.key]
++            const draftValue = state.drafts[row.key] ?? canonicalValues[row.key] ?? ''
++            const isDirty = draftValue !== canonicalValues[row.key]
++
++            return (
++              <tr key={row.key}>
++                <td className="mono">{formatOffset(row.offset)}</td>
++                <td>{fieldLabel}</td>
++                <td className="mono">{formatTypeLabel(row.type)}</td>
++                <td>{row.size}</td>
++                <td>
++                  <div className="field-input-group">
++                    <input
++                      className={`field-input ${error ? 'input-error' : ''}`}
++                      spellCheck={false}
++                      value={draftValue}
++                      onChange={(event) => {
++                        const nextValue = event.target.value
++                        setState((current) => ({
++                          ...current,
++                          drafts: {
++                            ...current.drafts,
++                            [row.key]: nextValue,
++                          },
++                        }))
++                        clearError(row.key)
++                      }}
++                      onKeyDown={(event) => {
++                        if (event.key === 'Enter') {
++                          event.preventDefault()
++                          applyRow(row.key)
++                        }
++                      }}
++                    />
++                    {error && <p className="inline-error">{error}</p>}
++                  </div>
++                </td>
++                <td className="row-actions">
++                  <button type="button" onClick={() => applyRow(row.key)}>
++                    {isDirty ? t('apply') : t('reapply')}
++                  </button>
++                </td>
++              </tr>
++            )
++          })}
++        </tbody>
++      </table>
++    </div>
++  )
++}
+diff --git a/src/i18n.ts b/src/i18n.ts
+index 0bb210a..0069585 100644
+--- a/src/i18n.ts
++++ b/src/i18n.ts
+@@ -11,108 +11,192 @@ const resources = {
+       metadata: 'Metadata',
+       generalChecksum: 'General checksum',
+       valid: 'Valid',
+       invalid: 'Invalid',
+       slot: 'Block',
+       kind: 'Kind',
+       chapter: 'Chapter',
+       turn: 'Turn',
+       gold: 'Gold',
+       playerName: 'Name',
++      field: 'Field',
++      type: 'Type',
++      value: 'Value',
++      actions: 'Actions',
+       saveSlot: 'Save slot',
+       apply: 'Apply changes',
++      reapply: 'Apply again',
+       download: 'Download edited save',
+       noEditableBlock: 'No editable game/suspend block found.',
+       loadError: 'Failed to parse save file.',
+       invalidFileType: 'Only .sav files are supported.',
+       blockReadOnly: 'This block is read-only and cannot be edited.',
++      blockEditor: 'Block editor',
++      structuredTab: 'Structured',
++      hexTab: 'Hex',
++      ascii: 'ASCII',
+       updated: 'Edits applied.',
+       blockKind0: 'Game',
+       blockKind1: 'Suspend',
+       blockKind2: 'Link Arena',
+       blockKind3: 'Extra',
+       blockKindOther: 'Unknown',
+       checksum: 'Checksum',
+       offset: 'Offset',
+       size: 'Size',
++      editorUnknownError: 'Unable to apply the edit.',
++      'hexEditor.hex': 'Hex bytes',
++      'hexEditor.invalidByte': 'Enter exactly two hexadecimal characters.',
++      'saveCodec.invalidBlock': 'This block is missing or invalid and cannot be edited.',
++      'saveCodec.patchOutOfRange': 'That edit is outside the selected block.',
++      'structuredEditor.invalidRow': 'This field is not available for the selected block.',
++      'structuredEditor.invalidInteger': 'Enter a whole number.',
++      'structuredEditor.outOfRange': 'Value is outside the valid range for this field.',
++      'structuredEditor.invalidBytes': 'Enter hexadecimal bytes such as AB or 0xAB.',
++      'structuredEditor.textTooLong': 'Text is too long for this field.',
++      'field.playst.gold': 'Gold',
++      'field.playst.saveSlot': 'Save slot',
++      'field.playst.chapterIndex': 'Chapter index',
++      'field.playst.chapterTurn': 'Chapter turn',
++      'field.playst.chapterStateBits': 'Chapter state bits',
++      'field.playst.playthroughId': 'Playthrough ID',
++      'field.playst.chapterMode': 'Chapter mode',
++      'field.playst.playerName': 'Player name',
++      'field.unknown.byte': 'Raw byte',
+       sourceInfo:
+         'References: GameFAQs saves, FE decomp projects, SaveMetadata format notes.',
+     },
+   },
+   ja: {
+     translation: {
+       title: 'ファイアーエムブレム GBA セーブエディタ',
+       subtitle: 'FE6/FE7/FE8 のセーブをブラウザで編集します。',
+       upload: '.sav ファイルを開く',
+       game: 'ゲーム',
+       metadata: 'メタデータ',
+       generalChecksum: '全体チェックサム',
+       valid: '有効',
+       invalid: '無効',
+       slot: 'ブロック',
+       kind: '種類',
+       chapter: '章',
+       turn: 'ターン',
+       gold: '所持金',
+       playerName: '名前',
++      field: '項目',
++      type: '型',
++      value: '値',
++      actions: '操作',
+       saveSlot: 'セーブ番号',
+       apply: '変更を適用',
++      reapply: '再適用',
+       download: '編集済みセーブを保存',
+       noEditableBlock: '編集可能なブロックが見つかりません。',
+       loadError: 'セーブの解析に失敗しました。',
+       invalidFileType: '.sav ファイルのみ対応しています。',
+       blockReadOnly: 'このブロックは読み取り専用で編集できません。',
++      blockEditor: 'ブロック編集',
++      structuredTab: '構造化',
++      hexTab: '16進',
++      ascii: 'ASCII',
+       updated: '変更を適用しました。',
+       blockKind0: '通常セーブ',
+       blockKind1: '中断セーブ',
+       blockKind2: 'リンクアリーナ',
+       blockKind3: '追加',
+       blockKindOther: '不明',
+       checksum: 'チェックサム',
+       offset: 'オフセット',
+       size: 'サイズ',
++      editorUnknownError: '編集を適用できませんでした。',
++      'hexEditor.hex': '16進データ',
++      'hexEditor.invalidByte': '16進数2桁で入力してください。',
++      'saveCodec.invalidBlock': 'このブロックは欠損または無効なため編集できません。',
++      'saveCodec.patchOutOfRange': '選択中ブロックの範囲外です。',
++      'structuredEditor.invalidRow': 'このブロックではこの項目を編集できません。',
++      'structuredEditor.invalidInteger': '整数を入力してください。',
++      'structuredEditor.outOfRange': '値がこの項目の範囲外です。',
++      'structuredEditor.invalidBytes': 'AB または 0xAB のような16進数を入力してください。',
++      'structuredEditor.textTooLong': '文字列が長すぎます。',
++      'field.playst.gold': '所持金',
++      'field.playst.saveSlot': 'セーブ番号',
++      'field.playst.chapterIndex': '章番号',
++      'field.playst.chapterTurn': 'ターン',
++      'field.playst.chapterStateBits': '章状態ビット',
++      'field.playst.playthroughId': '周回ID',
++      'field.playst.chapterMode': '章モード',
++      'field.playst.playerName': '主人公名',
++      'field.unknown.byte': '生バイト',
+       sourceInfo:
+         '参考: GameFAQs セーブ、FE decomp、SaveMetadata ドキュメント。',
+     },
+   },
+   zh: {
+     translation: {
+       title: '火焰之纹章 GBA 存档编辑器',
+       subtitle: '在浏览器中直接编辑 FE6/FE7/FE8 存档。',
+       upload: '打开 .sav 文件',
+       game: '游戏',
+       metadata: '元数据',
+       generalChecksum: '全局校验',
+       valid: '有效',
+       invalid: '无效',
+       slot: '区块',
+       kind: '类型',
+       chapter: '章节',
+       turn: '回合',
+       gold: '金钱',
+       playerName: '名称',
++      field: '字段',
++      type: '类型',
++      value: '数值',
++      actions: '操作',
+       saveSlot: '存档位',
+       apply: '应用修改',
++      reapply: '再次应用',
+       download: '下载修改后的存档',
+       noEditableBlock: '未找到可编辑的普通/中断存档区块。',
+       loadError: '解析存档失败。',
+       invalidFileType: '仅支持 .sav 文件。',
+       blockReadOnly: '该区块为只读，不能编辑。',
++      blockEditor: '区块编辑器',
++      structuredTab: '结构化',
++      hexTab: '十六进制',
++      ascii: 'ASCII',
+       updated: '修改已应用。',
+       blockKind0: '普通存档',
+       blockKind1: '中断存档',
+       blockKind2: '联机竞技',
+       blockKind3: '扩展',
+       blockKindOther: '未知',
+       checksum: '校验值',
+       offset: '偏移',
+       size: '大小',
++      editorUnknownError: '无法应用修改。',
++      'hexEditor.hex': '十六进制字节',
++      'hexEditor.invalidByte': '请输入恰好两位十六进制字符。',
++      'saveCodec.invalidBlock': '该区块缺失或无效，无法编辑。',
++      'saveCodec.patchOutOfRange': '修改超出了当前区块范围。',
++      'structuredEditor.invalidRow': '当前区块不支持该字段。',
++      'structuredEditor.invalidInteger': '请输入整数。',
++      'structuredEditor.outOfRange': '该字段的值超出允许范围。',
++      'structuredEditor.invalidBytes': '请输入 AB 或 0xAB 形式的十六进制字节。',
++      'structuredEditor.textTooLong': '文本长度超出该字段限制。',
++      'field.playst.gold': '金钱',
++      'field.playst.saveSlot': '存档位',
++      'field.playst.chapterIndex': '章节索引',
++      'field.playst.chapterTurn': '章节回合',
++      'field.playst.chapterStateBits': '章节状态位',
++      'field.playst.playthroughId': '周目 ID',
++      'field.playst.chapterMode': '章节模式',
++      'field.playst.playerName': '主角名称',
++      'field.unknown.byte': '原始字节',
+       sourceInfo: '参考：GameFAQs 存档、FE 反编译项目、SaveMetadata 说明。',
+     },
+   },
+ } as const
+ 
+ void i18n.use(initReactI18next).init({
+   resources,
+   lng: 'en',
+   fallbackLng: 'en',
+   interpolation: { escapeValue: false },
+diff --git a/src/lib/editorDraftState.test.ts b/src/lib/editorDraftState.test.ts
+new file mode 100644
+index 0000000..859c6b4
+--- /dev/null
++++ b/src/lib/editorDraftState.test.ts
+@@ -0,0 +1,107 @@
++import { describe, expect, it } from 'vitest'
++import {
++  reconcileDraftErrors,
++  reconcileDraftValues,
++} from './editorDraftState'
++
++describe('editorDraftState', () => {
++  it('preserves unrelated dirty drafts when canonical values change elsewhere', () => {
++    const previousCanonical = {
++      a: 'AA',
++      b: 'BB',
++    }
++    const currentDrafts = {
++      a: 'AA',
++      b: 'CC',
++    }
++    const nextCanonical = {
++      a: 'DD',
++      b: 'BB',
++    }
++
++    expect(
++      reconcileDraftValues(currentDrafts, previousCanonical, nextCanonical),
++    ).toEqual({
++      a: 'DD',
++      b: 'CC',
++    })
++  })
++
++  it('drops stale errors only for values whose canonical bytes changed', () => {
++    const previousCanonical = {
++      a: 'AA',
++      b: 'BB',
++    }
++    const currentDrafts = {
++      a: 'AA',
++      b: 'CC',
++    }
++    const currentErrors = {
++      a: 'error-a',
++      b: 'error-b',
++    }
++    const nextCanonical = {
++      a: 'DD',
++      b: 'BB',
++    }
++
++    expect(
++      reconcileDraftErrors(
++        currentErrors,
++        currentDrafts,
++        previousCanonical,
++        nextCanonical,
++      ),
++    ).toEqual({
++      b: 'error-b',
++    })
++  })
++
++  it('resets drafts and errors when the selected block changes', () => {
++    const reconcileValues = reconcileDraftValues as (
++      currentDrafts: Record<string, string>,
++      previousCanonical: Record<string, string>,
++      nextCanonical: Record<string, string>,
++      preserveDirtyState: boolean,
++    ) => Record<string, string>
++    const reconcileErrors = reconcileDraftErrors as (
++      currentErrors: Record<string, string>,
++      currentDrafts: Record<string, string>,
++      previousCanonical: Record<string, string>,
++      nextCanonical: Record<string, string>,
++      preserveDirtyState: boolean,
++    ) => Record<string, string>
++    const previousCanonical = {
++      gold: '1234',
++    }
++    const currentDrafts = {
++      gold: '9999',
++    }
++    const currentErrors = {
++      gold: 'structuredEditor.outOfRange',
++    }
++    const nextCanonical = {
++      gold: '1234',
++    }
++
++    expect(
++      reconcileValues(
++        currentDrafts,
++        previousCanonical,
++        nextCanonical,
++        false,
++      ),
++    ).toEqual({
++      gold: '1234',
++    })
++    expect(
++      reconcileErrors(
++        currentErrors,
++        currentDrafts,
++        previousCanonical,
++        nextCanonical,
++        false,
++      ),
++    ).toEqual({})
++  })
++})
+diff --git a/src/lib/editorDraftState.ts b/src/lib/editorDraftState.ts
+new file mode 100644
+index 0000000..59efe56
+--- /dev/null
++++ b/src/lib/editorDraftState.ts
+@@ -0,0 +1,46 @@
++type DraftMap<TKey extends string | number> = Record<TKey, string>
++
++export function reconcileDraftValues<TKey extends string | number>(
++  currentDrafts: DraftMap<TKey>,
++  previousCanonical: DraftMap<TKey>,
++  nextCanonical: DraftMap<TKey>,
++  preserveDirtyState = true,
++): DraftMap<TKey> {
++  const nextDrafts = {} as DraftMap<TKey>
++
++  for (const key of Object.keys(nextCanonical) as TKey[]) {
++    const previousValue = previousCanonical[key]
++    const nextValue = nextCanonical[key]
++    const currentDraft = currentDrafts[key]
++    const isDirty = key in currentDrafts && currentDraft !== previousValue
++
++    nextDrafts[key] = preserveDirtyState && isDirty && previousValue === nextValue
++      ? currentDraft
++      : nextValue
++  }
++
++  return nextDrafts
++}
++
++export function reconcileDraftErrors<TKey extends string | number>(
++  currentErrors: DraftMap<TKey>,
++  currentDrafts: DraftMap<TKey>,
++  previousCanonical: DraftMap<TKey>,
++  nextCanonical: DraftMap<TKey>,
++  preserveDirtyState = true,
++): DraftMap<TKey> {
++  const nextErrors = {} as DraftMap<TKey>
++
++  for (const key of Object.keys(nextCanonical) as TKey[]) {
++    const previousValue = previousCanonical[key]
++    const nextValue = nextCanonical[key]
++    const currentDraft = currentDrafts[key]
++    const isDirty = key in currentDrafts && currentDraft !== previousValue
++
++    if (preserveDirtyState && isDirty && previousValue === nextValue && currentErrors[key]) {
++      nextErrors[key] = currentErrors[key]
++    }
++  }
++
++  return nextErrors
++}
+diff --git a/src/lib/editorState.test.ts b/src/lib/editorState.test.ts
+index ee163ae..bcd5c29 100644
+--- a/src/lib/editorState.test.ts
++++ b/src/lib/editorState.test.ts
+@@ -1,10 +1,74 @@
+ import { describe, expect, it } from 'vitest'
+-import { resolveEditorState } from './editorState'
++import { getEditableBlockIndexes, resolveEditorState } from './editorState'
+ 
+ describe('resolveEditorState', () => {
+   it('does not force selected block back to first editable block', () => {
+     const state = resolveEditorState(5, [0, 1, 3, 4])
+     expect(state.selectedBlock).toBe(5)
+     expect(state.editingBlock).toBeNull()
+   })
++
++  it('treats every parsed block as editable when generic block editing is enabled', () => {
++    const resolveEditableIndexes = getEditableBlockIndexes as (
++      parsed: {
++        bytes: Uint8Array
++        blocks: Array<{
++          index: number
++          kind: number
++          magic32: number
++          offset: number
++          size: number
++        }>
++      },
++    ) => number[]
++    const editableIndexes = resolveEditableIndexes({
++      bytes: new Uint8Array(0x1200),
++      blocks: Array.from({ length: 7 }, (_, index) => ({
++        index,
++        kind: index,
++        magic32: 0x40624 + index,
++        offset: 0x0200 + index * 0x0100,
++        size: 0x0080,
++      })),
++    })
++
++    expect(editableIndexes).toEqual([0, 1, 2, 3, 4, 5, 6])
++    for (const blockIndex of editableIndexes) {
++      expect(resolveEditorState(blockIndex, editableIndexes)).toEqual({
++        selectedBlock: blockIndex,
++        editingBlock: blockIndex,
++      })
++    }
++  })
++
++  it('keeps absent blocks read-only when generic block editing is enabled', () => {
++    const resolveEditableIndexes = getEditableBlockIndexes as (
++      parsed: {
++        bytes: Uint8Array
++        blocks: Array<{
++          index: number
++          kind: number
++          magic32: number
++          offset: number
++          size: number
++        }>
++      },
++    ) => number[]
++    const editableIndexes = resolveEditableIndexes({
++      bytes: new Uint8Array(0x1200),
++      blocks: Array.from({ length: 7 }, (_, index) => ({
++        index,
++        kind: index === 6 ? 0xff : index,
++        magic32: index === 6 ? 0 : 0x40624 + index,
++        offset: 0x0200 + index * 0x0100,
++        size: 0x0080,
++      })),
++    })
++
++    expect(editableIndexes).toEqual([0, 1, 2, 3, 4, 5])
++    expect(resolveEditorState(6, editableIndexes)).toEqual({
++      selectedBlock: 6,
++      editingBlock: null,
++    })
++  })
+ })
+diff --git a/src/lib/editorState.ts b/src/lib/editorState.ts
+index 1b80ba2..555af80 100644
+--- a/src/lib/editorState.ts
++++ b/src/lib/editorState.ts
+@@ -1,15 +1,46 @@
+ export interface ResolvedEditorState {
+   selectedBlock: number
+   editingBlock: number | null
+ }
+ 
++interface EditableBlockLike {
++  index: number
++  kind: number
++  magic32: number
++  offset: number
++  size: number
++}
++
++interface EditableBlockSource<TBlock extends EditableBlockLike = EditableBlockLike> {
++  bytes: Uint8Array
++  blocks: readonly TBlock[]
++}
++
++function isEditableBlock(block: EditableBlockLike, byteLength: number): boolean {
++  return (
++    block.size > 0 &&
++    block.offset > 0 &&
++    block.offset + block.size <= byteLength &&
++    block.magic32 !== 0 &&
++    block.kind !== 0xff
++  )
++}
++
++export function getEditableBlockIndexes<TBlock extends EditableBlockLike>(
++  parsed: EditableBlockSource<TBlock>,
++): number[] {
++  return parsed.blocks
++    .filter((block) => isEditableBlock(block, parsed.bytes.length))
++    .map((block) => block.index)
++}
++
+ export function resolveEditorState(
+   selectedBlock: number,
+   editableBlockIndexes: number[],
+ ): ResolvedEditorState {
+   return {
+     selectedBlock,
+     editingBlock: editableBlockIndexes.includes(selectedBlock)
+       ? selectedBlock
+       : null,
+   }
+diff --git a/src/lib/structuredEditor.test.ts b/src/lib/structuredEditor.test.ts
+index d1722bf..2890708 100644
+--- a/src/lib/structuredEditor.test.ts
++++ b/src/lib/structuredEditor.test.ts
+@@ -104,24 +104,26 @@ function buildSampleSave(gameCode: SampleGameCode = 'FE8'): File {
+   return new File([buf], 'structured.sav', { type: 'application/octet-stream' })
+ }
+ 
+ describe('structuredEditor', () => {
+   it('returns known PlaySt rows for FE8 save and suspend blocks plus generic rows for unknown regions', async () => {
+     const parsed = await parseSaveFile(buildSampleSave())
+ 
+     const saveRows = getStructuredRows(parsed, 0)
+     const suspendRows = getStructuredRows(parsed, 1)
+     const archiveRows = getStructuredRows(parsed, 6)
++    const playerNameRow = saveRows.find((row) => row.labelKey === 'field.playst.playerName')
+ 
+     expect(saveRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(true)
+     expect(saveRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(true)
+     expect(saveRows.some((row) => row.type === 'bytes')).toBe(true)
++    expect(playerNameRow?.size).toBe(0x0b)
+ 
+     expect(suspendRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(true)
+     expect(suspendRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(true)
+ 
+     expect(archiveRows.length).toBe(parsed.blocks[6].size)
+     expect(archiveRows.every((row) => row.type === 'bytes')).toBe(true)
+   })
+ 
+   it('falls back to generic rows for FE6, FE7, and UNKNOWN save blocks', async () => {
+     for (const gameCode of ['FE6', 'FE7', 'UNKNOWN'] as const) {
+diff --git a/src/lib/structuredEditor.ts b/src/lib/structuredEditor.ts
+index 09659ae..a28c85e 100644
+--- a/src/lib/structuredEditor.ts
++++ b/src/lib/structuredEditor.ts
+@@ -1,17 +1,17 @@
+ import { getBlockSchema, type BlockFieldSchema, type FieldType } from './blockSchema'
+ import { readBlockBytes, updateBlockBytes, type ParsedSaveFile } from './saveCodec'
+ 
+ export type FieldRow = {
+   key: string
+   offset: number
+-  size: 1 | 2 | 4
++  size: number
+   type: FieldType
+   labelKey: string
+   value: number | string
+ }
+ 
+ type ResolvedFieldRow = FieldRow & {
+   byteLength: number
+ }
+ 
+ export const STRUCTURED_EDITOR_ERROR_KEYS = {
+@@ -68,21 +68,21 @@ function readValue(bytes: Uint8Array, field: BlockFieldSchema): number | string
+       return readFixedString(bytes, field.offset, field.byteLength)
+     case 'bytes':
+       return toHexString(bytes.slice(field.offset, field.offset + field.byteLength))
+   }
+ }
+ 
+ function buildKnownRows(bytes: Uint8Array, fields: readonly BlockFieldSchema[]): ResolvedFieldRow[] {
+   return fields.map((field) => ({
+     key: field.key,
+     offset: field.offset,
+-    size: field.size,
++    size: field.byteLength,
+     byteLength: field.byteLength,
+     type: field.type,
+     labelKey: field.labelKey,
+     value: readValue(bytes, field),
+   }))
+ }
+ 
+ function buildGenericRows(bytes: Uint8Array, coveredOffsets: Set<number>): ResolvedFieldRow[] {
+   const rows: ResolvedFieldRow[] = []
+   for (let offset = 0; offset < bytes.length; offset += 1) {

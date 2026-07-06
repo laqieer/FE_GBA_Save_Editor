@@ -1,0 +1,272 @@
+# Review package: d368f5d..99e63e69a1c6ec59150ee5c255732f6272c4e1d0
+
+## Commits
+99e63e6 fix: validate hex row width
+b056658 feat: add hex editor model and edit pipeline
+
+## Files changed
+ .superpowers/sdd/task-3-report.md |  74 +++++++++++++++++++++++++
+ src/lib/hexEditor.test.ts         | 111 ++++++++++++++++++++++++++++++++++++++
+ src/lib/hexEditor.ts              |  55 +++++++++++++++++++
+ 3 files changed, 240 insertions(+)
+
+## Diff
+diff --git a/.superpowers/sdd/task-3-report.md b/.superpowers/sdd/task-3-report.md
+new file mode 100644
+index 0000000..3982ad6
+--- /dev/null
++++ b/.superpowers/sdd/task-3-report.md
+@@ -0,0 +1,74 @@
++# Task 3 Report
++
++## Scope
++- Implemented `src/lib/hexEditor.ts` with `toHexRows` and `applyHexEdit`.
++- Added RED-first coverage in `src/lib/hexEditor.test.ts`.
++- Left `src/lib/structuredEditor.ts` unchanged because Task procedure step 4 only required changes if needed, and compatibility tests passed without them.
++
++## Requirements Read
++- Source brief: `.superpowers/sdd/task-3-brief.md`
++- Goal: editable hex model and sync pipeline for block edits through the codec path.
++- Constraints covered:
++  - all block indices `0` through `6` can be edited through `applyHexEdit`
++  - invalid hex input throws `Invalid hex byte`
++  - invalid edits do not mutate canonical `parsed.bytes`
++  - successful edits preserve block and general checksum validity
++  - structured editor behavior remains compatible
++
++## TDD Record
++1. Added `src/lib/hexEditor.test.ts` before production code existed.
++2. Ran `npm run test:run -- src/lib/hexEditor.test.ts`.
++3. Observed RED failure: `Cannot find module './hexEditor'`.
++4. Implemented the minimal production code in `src/lib/hexEditor.ts`.
++5. Added a second RED test for invalid `bytesPerRow` values after code review feedback.
++6. Re-ran targeted and regression verification commands until all passed.
++
++## Test Coverage Added
++- `toHexRows` groups bytes into rows, emits uppercase hex pairs, and renders printable ASCII with `.` for non-printable bytes.
++- `toHexRows` rejects invalid `bytesPerRow` values instead of risking malformed stepping or non-terminating loops.
++- `applyHexEdit` updates bytes across every block index `0`-`6` and preserves block/general checksum validity.
++- Invalid hex inputs (`GG`, `F`) throw `Invalid hex byte` and leave canonical bytes unchanged.
++
++## Implementation Notes
++### `src/lib/hexEditor.ts`
++- Added `HexRow` type.
++- Added `toHexRows(blockBytes, bytesPerRow = 16)`.
++- Added strict `bytesPerRow` validation requiring a positive integer.
++- Added strict `HEX_PAIR` validation with no whitespace/prefix normalization.
++- Added `applyHexEdit(parsed, blockIndex, absoluteByteOffset, nextHexPair)` that delegates persistence/checksum recomputation to `updateBlockBytes`.
++
++### `src/lib/structuredEditor.ts`
++- No code changes required.
++- Existing structured editor stayed compatible under regression tests.
++- This matched the task procedure instruction: modify `structuredEditor.ts` only if needed.
++
++## Verification
++### RED proof
++- `npm run test:run -- src/lib/hexEditor.test.ts`
++- Outcome before implementation: FAIL, missing `./hexEditor` module.
++
++- `npm run test:run -- src/lib/hexEditor.test.ts`
++- Outcome during review follow-up: FAIL, expected invalid `bytesPerRow` test to throw but it did not.
++
++### GREEN / regression
++- `npm run test:run -- src/lib/hexEditor.test.ts`
++- Outcome: PASS (4 tests).
++
++- `npm run test:run -- src/lib/hexEditor.test.ts src/lib/structuredEditor.test.ts src/lib/blockCodec.test.ts src/lib/saveCodec.test.ts`
++- Outcome: PASS (4 files, 18 tests).
++
++- `npm run build`
++- Outcome: PASS.
++
++## Review Follow-up
++- External review flagged missing `bytesPerRow` validation in `toHexRows`.
++- Verified the issue locally with a failing test, then fixed it by rejecting non-positive or non-integer values.
++- External review also noted `structuredEditor.ts` was unchanged; verified Task procedure step 4 allows leaving it unchanged when no compatibility fix is needed.
++
++## Files Changed
++- `src/lib/hexEditor.ts`
++- `src/lib/hexEditor.test.ts`
++- `.superpowers/sdd/task-3-report.md`
++
++## Commit / Push
++- Final branch state includes the required feature commit and a follow-up validation fix commit before push.
+\ No newline at end of file
+diff --git a/src/lib/hexEditor.test.ts b/src/lib/hexEditor.test.ts
+new file mode 100644
+index 0000000..6eb0000
+--- /dev/null
++++ b/src/lib/hexEditor.test.ts
+@@ -0,0 +1,111 @@
++import { describe, expect, it } from 'vitest'
++import { parseSaveFile, readBlockBytes } from './saveCodec'
++import { applyHexEdit, toHexRows } from './hexEditor'
++
++function writeU16(buf: Uint8Array, offset: number, value: number) {
++  buf[offset] = value & 0xff
++  buf[offset + 1] = (value >>> 8) & 0xff
++}
++
++function writeU32(buf: Uint8Array, offset: number, value: number) {
++  buf[offset] = value & 0xff
++  buf[offset + 1] = (value >>> 8) & 0xff
++  buf[offset + 2] = (value >>> 16) & 0xff
++  buf[offset + 3] = (value >>> 24) & 0xff
++}
++
++function checksum16(data: Uint8Array): number {
++  let addAcc = 0
++  let xorAcc = 0
++  for (let i = 0; i < data.length; i += 2) {
++    const v = data[i] | (data[i + 1] << 8)
++    addAcc += v
++    xorAcc ^= v
++  }
++  return (addAcc + xorAcc) & 0xffff
++}
++
++function checksum32(data: Uint8Array): number {
++  let addAcc = 0
++  let xorAcc = 0
++  for (let i = 0; i < data.length; i += 2) {
++    const v = data[i] | (data[i + 1] << 8)
++    addAcc += v
++    xorAcc ^= v
++  }
++  return ((addAcc & 0xffff) | ((xorAcc & 0xffff) << 16)) >>> 0
++}
++
++function buildSampleSave(): File {
++  const buf = new Uint8Array(0x1400)
++  const magic = new TextEncoder().encode('AGB-FE8\u0000')
++  buf.set(magic, 0x00)
++  writeU32(buf, 0x08, 0x40624)
++  writeU16(buf, 0x0c, 0x200a)
++
++  for (let blockIndex = 0; blockIndex < 7; blockIndex += 1) {
++    const infoOffset = 0x64 + blockIndex * 0x10
++    const blockOffset = 0x0200 + blockIndex * 0x0100
++    const blockSize = 0x0080
++
++    writeU32(buf, infoOffset, 0x40624 + blockIndex)
++    writeU16(buf, infoOffset + 0x04, 0x200a)
++    buf[infoOffset + 0x06] = blockIndex
++    writeU16(buf, infoOffset + 0x08, blockOffset)
++    writeU16(buf, infoOffset + 0x0a, blockSize)
++
++    for (let i = 0; i < blockSize; i += 1) {
++      buf[blockOffset + i] = (blockIndex * 17 + i) & 0xff
++    }
++  }
++
++  for (let blockIndex = 0; blockIndex < 7; blockIndex += 1) {
++    const infoOffset = 0x64 + blockIndex * 0x10
++    const blockOffset = 0x0200 + blockIndex * 0x0100
++    const blockSize = 0x0080
++    const blockBody = buf.slice(blockOffset, blockOffset + blockSize)
++    writeU32(buf, infoOffset + 0x0c, checksum32(blockBody))
++  }
++
++  writeU16(buf, 0x60, checksum16(buf.slice(0, 0x50)))
++  return new File([buf], 'hex-editor.sav', { type: 'application/octet-stream' })
++}
++
++describe('hexEditor', () => {
++  it('groups block bytes into uppercase hex rows with printable ascii', () => {
++    const rows = toHexRows(Uint8Array.from([0x41, 0x42, 0x20, 0x7e, 0x1f, 0x00, 0x43]), 4)
++
++    expect(rows).toEqual([
++      { rowOffset: 0, hex: ['41', '42', '20', '7E'], ascii: 'AB ~' },
++      { rowOffset: 4, hex: ['1F', '00', '43'], ascii: '..C' },
++    ])
++  })
++
++  it('rejects invalid bytes-per-row values', () => {
++    expect(() => toHexRows(Uint8Array.from([0x41, 0x42]), 1.5)).toThrow('Invalid bytes per row')
++  })
++
++  it('applies hex edits across every block while preserving valid checksums', async () => {
++    const parsed = await parseSaveFile(buildSampleSave())
++    let changed = parsed
++
++    for (let blockIndex = 0; blockIndex < 7; blockIndex += 1) {
++      const offset = 0x10 + blockIndex
++      const nextHexPair = (0xa0 + blockIndex).toString(16).padStart(2, '0')
++      changed = applyHexEdit(changed, blockIndex, offset, nextHexPair)
++
++      expect(readBlockBytes(changed, blockIndex)[offset]).toBe(0xa0 + blockIndex)
++      expect(changed.blocks[blockIndex].checksumValid).toBe(true)
++      expect(changed.generalChecksumValid).toBe(true)
++    }
++  })
++
++  it('rejects invalid hex pairs without mutating canonical bytes', async () => {
++    const parsed = await parseSaveFile(buildSampleSave())
++    const before = parsed.bytes.slice()
++
++    expect(() => applyHexEdit(parsed, 5, 0x2a, 'GG')).toThrow('Invalid hex byte')
++    expect(() => applyHexEdit(parsed, 5, 0x2a, 'F')).toThrow('Invalid hex byte')
++    expect(parsed.bytes).toEqual(before)
++  })
++})
+diff --git a/src/lib/hexEditor.ts b/src/lib/hexEditor.ts
+new file mode 100644
+index 0000000..71a1af3
+--- /dev/null
++++ b/src/lib/hexEditor.ts
+@@ -0,0 +1,55 @@
++import { updateBlockBytes, type ParsedSaveFile } from './saveCodec'
++
++export type HexRow = {
++  rowOffset: number
++  hex: string[]
++  ascii: string
++}
++
++const DEFAULT_BYTES_PER_ROW = 16
++const HEX_PAIR = /^[0-9a-fA-F]{2}$/
++
++function toHexPair(value: number): string {
++  return value.toString(16).padStart(2, '0').toUpperCase()
++}
++
++function toAsciiChar(value: number): string {
++  return value >= 0x20 && value <= 0x7e ? String.fromCharCode(value) : '.'
++}
++
++export function toHexRows(blockBytes: Uint8Array, bytesPerRow = DEFAULT_BYTES_PER_ROW): HexRow[] {
++  if (!Number.isInteger(bytesPerRow) || bytesPerRow <= 0) {
++    throw new Error('Invalid bytes per row')
++  }
++
++  const rows: HexRow[] = []
++
++  for (let rowOffset = 0; rowOffset < blockBytes.length; rowOffset += bytesPerRow) {
++    const rowBytes = blockBytes.slice(rowOffset, rowOffset + bytesPerRow)
++    rows.push({
++      rowOffset,
++      hex: Array.from(rowBytes, toHexPair),
++      ascii: Array.from(rowBytes, toAsciiChar).join(''),
++    })
++  }
++
++  return rows
++}
++
++export function applyHexEdit(
++  parsed: ParsedSaveFile,
++  blockIndex: number,
++  absoluteByteOffset: number,
++  nextHexPair: string,
++): ParsedSaveFile {
++  if (!HEX_PAIR.test(nextHexPair)) {
++    throw new Error('Invalid hex byte')
++  }
++
++  return updateBlockBytes(
++    parsed,
++    blockIndex,
++    absoluteByteOffset,
++    Uint8Array.from([Number.parseInt(nextHexPair, 16)]),
++  )
++}

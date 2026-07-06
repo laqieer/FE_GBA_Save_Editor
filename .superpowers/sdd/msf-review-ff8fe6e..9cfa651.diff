@@ -1,0 +1,151 @@
+# Review package: ff8fe6e..9cfa651
+
+## Commits
+9cfa651 docs: finalize meaningful structured editor coverage
+
+## Files changed
+ README.md        |  2 +-
+ src/i18n.test.ts |  8 ++++++++
+ src/i18n.ts      | 12 ++++++++++++
+ 3 files changed, 21 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/README.md b/README.md
+index 8c93b3a..27ab3c7 100644
+--- a/README.md
++++ b/README.md
+@@ -2,21 +2,21 @@
+ 
+ Browser-based save editor for **Fire Emblem 6 / 7 / 8** (`.sav`) with automatic checksum repair and GitHub Pages deployment.
+ 
+ ## Features
+ 
+ - Load `.sav` files directly in browser (no server upload)
+ - Parse global metadata + 7 save block headers
+ - Validate metadata checksum and block checksums
+ - Edit every present save block (`#0`-`#6`)
+ - Switch between synchronized structured and hex editors for each block
+-- Known FE8 PlaySt fields keep labeled structured rows, while uncovered regions remain editable as raw bytes
++- Known FE6/FE7/FE8 structured fields provide meaningful labeled rows; FE6/FE7 unnamed members fall back to deterministic technical labels while uncovered regions remain editable as raw bytes
+ - Recompute block checksums after every edit and repair the global checksum on export
+ - Export patched `.sav` with updated checksums
+ - Responsive UI for desktop/mobile
+ - i18n: English, Japanese, Chinese
+ 
+ ## References
+ 
+ - Source code: <https://github.com/laqieer/FE_GBA_Save_Editor>
+ - GameFAQs saves: <https://gamefaqs.gamespot.com/search?game=fire+emblem>
+ - FE maps: <https://github.com/laqieer/fe-maps>
+diff --git a/src/i18n.test.ts b/src/i18n.test.ts
+index 3d994dc..b890f61 100644
+--- a/src/i18n.test.ts
++++ b/src/i18n.test.ts
+@@ -1,20 +1,28 @@
+ import { describe, expect, it } from 'vitest'
+ import i18n from './i18n'
+ 
+ describe('i18n', () => {
+   it('uses generic editable-block copy across locales', () => {
+     expect(i18n.getResourceBundle('en', 'translation').noEditableBlock).toBe('No editable block found.')
+     expect(i18n.getResourceBundle('ja', 'translation').noEditableBlock).toBe('編集可能なブロックが見つかりません。')
+     expect(i18n.getResourceBundle('zh', 'translation').noEditableBlock).toBe('未找到可编辑的区块。')
+   })
+ 
++  it('contains localization keys for structured domains and technical labels', () => {
++    const bundle = i18n.getResourceBundle('en', 'translation') as Record<string, any>
++    expect(bundle.structuredDomainUnits).toBeTruthy()
++    expect(bundle.structuredDomainInventory).toBeTruthy()
++    expect(bundle.structuredDomainProgressFlags).toBeTruthy()
++    expect(bundle.technicalFieldLabel).toBeTruthy()
++  })
++
+   it('includes full-block editor labels and validation errors in every locale', () => {
+     const requiredKeys = [
+       'blockEditor',
+       'structuredTab',
+       'hexTab',
+       'editorUnknownError',
+       'hexEditor.hex',
+       'hexEditor.pageStatus',
+       'hexEditor.byteRange',
+       'hexEditor.invalidByte',
+diff --git a/src/i18n.ts b/src/i18n.ts
+index cf62ca6..3dad741 100644
+--- a/src/i18n.ts
++++ b/src/i18n.ts
+@@ -59,20 +59,24 @@ const resources = {
+       'structuredEditor.textTooLong': 'Text is too long for this field.',
+       'structuredEditor.pageStatus': 'Page {{current}} / {{total}}',
+       'structuredEditor.expandGroup': 'Expand group',
+       'structuredEditor.collapseGroup': 'Collapse group',
+       'structuredEditor.fieldCount': '{{count}} fields',
+       'structuredEditor.domain.playState': 'Play state',
+       'structuredEditor.domain.units': 'Units',
+       'structuredEditor.domain.inventory': 'Inventory',
+       'structuredEditor.domain.progressFlags': 'Progress flags',
+       'structuredEditor.domain.technical': 'Technical',
++      structuredDomainUnits: 'Units',
++      structuredDomainInventory: 'Inventory / Convoy',
++      structuredDomainProgressFlags: 'Progress / Flags',
++      technicalFieldLabel: 'Technical field: {{memberPath}} (0x{{offset}})',
+       'structuredEditor.group.playState': 'Play state',
+       'structuredEditor.group.unit': 'Unit {{index}}',
+       'structuredEditor.group.inventoryConvoy': 'Convoy',
+       'structuredEditor.group.progressChapter': 'Chapter flags',
+       'structuredEditor.group.progressSupport': 'Support flags',
+       'structuredEditor.group.progressWorld': 'World flags',
+       'structuredEditor.group.unknown': 'Raw bytes',
+       'field.playst.gold': 'Gold',
+       'field.playst.saveSlot': 'Save slot',
+       'field.playst.chapterIndex': 'Chapter index',
+@@ -182,20 +186,24 @@ const resources = {
+       'structuredEditor.textTooLong': '文字列が長すぎます。',
+       'structuredEditor.pageStatus': '{{current}} / {{total}} ページ',
+       'structuredEditor.expandGroup': 'グループを展開',
+       'structuredEditor.collapseGroup': 'グループを折りたたむ',
+       'structuredEditor.fieldCount': '{{count}} 件',
+       'structuredEditor.domain.playState': 'プレイ状態',
+       'structuredEditor.domain.units': 'ユニット',
+       'structuredEditor.domain.inventory': '持ち物',
+       'structuredEditor.domain.progressFlags': '進行フラグ',
+       'structuredEditor.domain.technical': '技術項目',
++      structuredDomainUnits: 'ユニット',
++      structuredDomainInventory: 'アイテム / 輸送隊',
++      structuredDomainProgressFlags: '進行 / フラグ',
++      technicalFieldLabel: '技術項目: {{memberPath}} (0x{{offset}})',
+       'structuredEditor.group.playState': 'プレイ状態',
+       'structuredEditor.group.unit': 'ユニット {{index}}',
+       'structuredEditor.group.inventoryConvoy': '輸送隊',
+       'structuredEditor.group.progressChapter': '章フラグ',
+       'structuredEditor.group.progressSupport': '支援フラグ',
+       'structuredEditor.group.progressWorld': 'ワールドフラグ',
+       'structuredEditor.group.unknown': '生バイト',
+       'field.playst.gold': '所持金',
+       'field.playst.saveSlot': 'セーブ番号',
+       'field.playst.chapterIndex': '章番号',
+@@ -305,20 +313,24 @@ const resources = {
+       'structuredEditor.textTooLong': '文本长度超出该字段限制。',
+       'structuredEditor.pageStatus': '第 {{current}} / {{total}} 页',
+       'structuredEditor.expandGroup': '展开分组',
+       'structuredEditor.collapseGroup': '折叠分组',
+       'structuredEditor.fieldCount': '{{count}} 项',
+       'structuredEditor.domain.playState': '流程状态',
+       'structuredEditor.domain.units': '单位',
+       'structuredEditor.domain.inventory': '道具',
+       'structuredEditor.domain.progressFlags': '进度标记',
+       'structuredEditor.domain.technical': '技术字段',
++      structuredDomainUnits: '单位',
++      structuredDomainInventory: '道具 / 运输队',
++      structuredDomainProgressFlags: '进度 / 标记',
++      technicalFieldLabel: '技术字段：{{memberPath}} (0x{{offset}})',
+       'structuredEditor.group.playState': '流程状态',
+       'structuredEditor.group.unit': '单位 {{index}}',
+       'structuredEditor.group.inventoryConvoy': '运输队',
+       'structuredEditor.group.progressChapter': '章节标记',
+       'structuredEditor.group.progressSupport': '支援标记',
+       'structuredEditor.group.progressWorld': '世界标记',
+       'structuredEditor.group.unknown': '原始字节',
+       'field.playst.gold': '金钱',
+       'field.playst.saveSlot': '存档位',
+       'field.playst.chapterIndex': '章节索引',

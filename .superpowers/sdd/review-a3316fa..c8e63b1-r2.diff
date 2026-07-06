@@ -1,0 +1,345 @@
+# Review package: a3316fa..c8e63b1d1196c88e96a5eab0bcf431848121250a
+
+## Commits
+c8e63b1 fix: harden block offset validation
+0baa7a7 feat: add generic block byte editing codec
+
+## Files changed
+ src/lib/blockCodec.test.ts | 97 ++++++++++++++++++++++++++++++++++++++++++++++
+ src/lib/saveCodec.test.ts  | 43 ++++++++++++++++++++
+ src/lib/saveCodec.ts       | 68 ++++++++++++++++++++++++++++----
+ 3 files changed, 201 insertions(+), 7 deletions(-)
+
+## Diff
+diff --git a/src/lib/blockCodec.test.ts b/src/lib/blockCodec.test.ts
+new file mode 100644
+index 0000000..9be96e4
+--- /dev/null
++++ b/src/lib/blockCodec.test.ts
+@@ -0,0 +1,97 @@
++import { describe, expect, it } from 'vitest'
++import {
++  SAVE_CODEC_ERROR_KEYS,
++  parseSaveFile,
++  readBlockBytes,
++  updateBlockBytes,
++} from './saveCodec'
++
++function writeU16(buf: Uint8Array, offset: number, value: number) {
++  buf[offset] = value & 0xff
++  buf[offset + 1] = (value >>> 8) & 0xff
++}
++
++function writeU32(buf: Uint8Array, offset: number, value: number) {
++  buf[offset] = value & 0xff
++  buf[offset + 1] = (value >>> 8) & 0xff
++  buf[offset + 2] = (value >>> 16) & 0xff
++  buf[offset + 3] = (value >>> 24) & 0xff
++}
++
++function checksum16(data: Uint8Array): number {
++  let addAcc = 0
++  let xorAcc = 0
++  for (let i = 0; i < data.length; i += 2) {
++    const v = data[i] | (data[i + 1] << 8)
++    addAcc += v
++    xorAcc ^= v
++  }
++  return (addAcc + xorAcc) & 0xffff
++}
++
++function checksum32(data: Uint8Array): number {
++  let addAcc = 0
++  let xorAcc = 0
++  for (let i = 0; i < data.length; i += 2) {
++    const v = data[i] | (data[i + 1] << 8)
++    addAcc += v
++    xorAcc ^= v
++  }
++  return ((addAcc & 0xffff) | ((xorAcc & 0xffff) << 16)) >>> 0
++}
++
++function buildSampleSave(options: { magic32?: number; kind?: number } = {}): File {
++  const { magic32 = 0x40624, kind = 6 } = options
++  const buf = new Uint8Array(0x1200)
++  const magic = new TextEncoder().encode('AGB-FE8\u0000')
++  buf.set(magic, 0x00)
++  writeU32(buf, 0x08, 0x40624)
++  writeU16(buf, 0x0c, 0x200a)
++
++  writeU32(buf, 0x64 + 6 * 0x10, magic32)
++  writeU16(buf, 0x68 + 6 * 0x10, 0x200a)
++  buf[0x6a + 6 * 0x10] = kind
++  writeU16(buf, 0x6c + 6 * 0x10, 0x0600)
++  writeU16(buf, 0x6e + 6 * 0x10, 0x0080)
++
++  for (let i = 0; i < 0x80; i += 1) {
++    buf[0x0600 + i] = i
++  }
++
++  const blockBody = buf.slice(0x0600, 0x0680)
++  writeU32(buf, 0x70 + 6 * 0x10, checksum32(blockBody))
++  writeU16(buf, 0x60, checksum16(buf.slice(0, 0x50)))
++
++  return new File([buf], 'sample.sav', { type: 'application/octet-stream' })
++}
++
++describe('blockCodec', () => {
++  it('updates arbitrary bytes in block #6 and keeps checksum valid', async () => {
++    const parsed = await parseSaveFile(buildSampleSave())
++    const original = readBlockBytes(parsed, 6)
++    const patch = Uint8Array.from([0xaa, 0xbb, 0xcc, 0xdd])
++    const changed = updateBlockBytes(parsed, 6, 0x10, patch)
++
++    expect(readBlockBytes(changed, 6).slice(0x10, 0x14)).toEqual(patch)
++    expect(changed.blocks[6].checksumValid).toBe(true)
++    expect(readBlockBytes(changed, 6).slice(0, 0x10)).toEqual(original.slice(0, 0x10))
++  })
++
++  it('rejects absent blocks with zero magic', async () => {
++    const parsed = await parseSaveFile(buildSampleSave({ magic32: 0 }))
++
++    expect(() => readBlockBytes(parsed, 6)).toThrow(SAVE_CODEC_ERROR_KEYS.invalidBlock)
++    expect(() =>
++      updateBlockBytes(parsed, 6, 0, Uint8Array.from([0xaa])),
++    ).toThrow(SAVE_CODEC_ERROR_KEYS.invalidBlock)
++  })
++
++  it('rejects absent blocks marked with kind 0xff', async () => {
++    const parsed = await parseSaveFile(buildSampleSave({ kind: 0xff }))
++
++    expect(() => readBlockBytes(parsed, 6)).toThrow(SAVE_CODEC_ERROR_KEYS.invalidBlock)
++    expect(() =>
++      updateBlockBytes(parsed, 6, 0, Uint8Array.from([0xaa])),
++    ).toThrow(SAVE_CODEC_ERROR_KEYS.invalidBlock)
++  })
++})
+diff --git a/src/lib/saveCodec.test.ts b/src/lib/saveCodec.test.ts
+index 32da218..730b33b 100644
+--- a/src/lib/saveCodec.test.ts
++++ b/src/lib/saveCodec.test.ts
+@@ -1,15 +1,18 @@
+ import { describe, expect, it } from 'vitest'
+ import {
++  SAVE_CODEC_ERROR_KEYS,
+   parseSaveFile,
++  readBlockBytes,
+   serializeSaveFile,
+   updatePlayState,
++  updateBlockBytes,
+   type ParsedSaveFile,
+ } from './saveCodec'
+ 
+ function writeU16(buf: Uint8Array, offset: number, value: number) {
+   buf[offset] = value & 0xff
+   buf[offset + 1] = (value >>> 8) & 0xff
+ }
+ 
+ function writeU32(buf: Uint8Array, offset: number, value: number) {
+   buf[offset] = value & 0xff
+@@ -95,11 +98,51 @@ describe('saveCodec', () => {
+     expect(reparsed.generalChecksumValid).toBe(true)
+   })
+ 
+   it('returns immutable snapshots when editing', async () => {
+     const parsed = await parseSaveFile(buildSampleSave())
+     const changed: ParsedSaveFile = updatePlayState(parsed, 0, { gold: 1 })
+ 
+     expect(parsed.blocks[0].playState?.gold).toBe(12345)
+     expect(changed.blocks[0].playState?.gold).toBe(1)
+   })
++
++  it('updates arbitrary bytes in play-state block #0 and keeps checksum valid', async () => {
++    const parsed = await parseSaveFile(buildSampleSave())
++    const patch = Uint8Array.from([0xaa, 0xbb, 0xcc])
++    const changed = updateBlockBytes(parsed, 0, 0x10, patch)
++
++    expect(readBlockBytes(changed, 0).slice(0x10, 0x13)).toEqual(patch)
++    expect(changed.blocks[0].checksumValid).toBe(true)
++  })
++
++  it('keeps original bytes unchanged when updateBlockBytes rejects invalid input', async () => {
++    const parsed = await parseSaveFile(buildSampleSave())
++    const before = parsed.bytes.slice()
++
++    expect(() =>
++      updateBlockBytes(parsed, 0, 0x7f, Uint8Array.from([0xaa, 0xbb])),
++    ).toThrow(SAVE_CODEC_ERROR_KEYS.patchOutOfRange)
++    expect(parsed.bytes).toEqual(before)
++  })
++
++  it('rejects non-integer block offsets without mutating canonical bytes', async () => {
++    const parsed = await parseSaveFile(buildSampleSave())
++    const before = parsed.bytes.slice()
++
++    expect(() =>
++      updateBlockBytes(parsed, 0, Number.NaN, Uint8Array.from([0xaa])),
++    ).toThrow(SAVE_CODEC_ERROR_KEYS.patchOutOfRange)
++    expect(parsed.bytes).toEqual(before)
++
++    expect(() =>
++      updateBlockBytes(parsed, 0, 1.5, Uint8Array.from([0xbb])),
++    ).toThrow(SAVE_CODEC_ERROR_KEYS.patchOutOfRange)
++    expect(parsed.bytes).toEqual(before)
++  })
++
++  it('throws stable keys for invalid block reads', async () => {
++    const parsed = await parseSaveFile(buildSampleSave())
++
++    expect(() => readBlockBytes(parsed, 99)).toThrow(SAVE_CODEC_ERROR_KEYS.invalidBlock)
++  })
+ })
+diff --git a/src/lib/saveCodec.ts b/src/lib/saveCodec.ts
+index 826b4da..42c5c1d 100644
+--- a/src/lib/saveCodec.ts
++++ b/src/lib/saveCodec.ts
+@@ -34,20 +34,25 @@ export interface ParsedSaveFile {
+ }
+ 
+ export interface PlayStatePatch {
+   gold?: number
+   chapterIndex?: number
+   chapterTurn?: number
+   saveSlot?: number
+   playerName?: string
+ }
+ 
++export const SAVE_CODEC_ERROR_KEYS = {
++  invalidBlock: 'saveCodec.invalidBlock',
++  patchOutOfRange: 'saveCodec.patchOutOfRange',
++} as const
++
+ const BLOCK_INFO_START = 0x64
+ const BLOCK_INFO_COUNT = 7
+ const BLOCK_INFO_SIZE = 0x10
+ const GENERAL_CHECKSUM_OFFSET = 0x60
+ const GENERAL_CHECKSUM_SIZE = 0x50
+ const PLAYST_OFFSET = 0
+ 
+ function readU16(bytes: Uint8Array, offset: number): number {
+   return bytes[offset] | (bytes[offset + 1] << 8)
+ }
+@@ -135,46 +140,50 @@ function parsePlayState(bytes: Uint8Array, base: number, size: number): PlayStat
+     saveSlot: bytes[p + 0x0c],
+     chapterIndex: readI8(bytes, p + 0x0e),
+     chapterTurn: readU16(bytes, p + 0x10),
+     chapterStateBits: bytes[p + 0x14],
+     playthroughId: bytes[p + 0x18],
+     chapterMode: bytes[p + 0x1b],
+     playerName: readFixedString(bytes, p + 0x20, 0x0b),
+   }
+ }
+ 
++function isPresentBlock(block: Pick<SaveBlockView, 'kind' | 'magic32' | 'offset' | 'size'>, byteLength: number) {
++  return (
++    block.size > 0 &&
++    block.offset > 0 &&
++    block.offset + block.size <= byteLength &&
++    block.magic32 !== 0 &&
++    block.kind !== 0xff
++  )
++}
++
+ function parseFromBytes(fileName: string, bytes: Uint8Array): ParsedSaveFile {
+   const metadataName = readFixedString(bytes, 0, 8)
+   const metadataChecksum = readU16(bytes, GENERAL_CHECKSUM_OFFSET)
+   const metadataComputed = computeChecksum16(bytes.slice(0, GENERAL_CHECKSUM_SIZE))
+   const blocks: SaveBlockView[] = []
+ 
+   for (let i = 0; i < BLOCK_INFO_COUNT; i += 1) {
+     const o = BLOCK_INFO_START + i * BLOCK_INFO_SIZE
+     const magic32 = readU32(bytes, o)
+     const magic16 = readU16(bytes, o + 4)
+     const kind = bytes[o + 6]
+     const offset = readU16(bytes, o + 8)
+     const size = readU16(bytes, o + 0x0a)
+     const checksum32 = readU32(bytes, o + 0x0c)
+ 
+     let checksumComputed = 0
+     let checksumValid = false
+     let playState: PlayState | undefined
+ 
+-    if (
+-      size > 0 &&
+-      offset > 0 &&
+-      offset + size <= bytes.length &&
+-      magic32 !== 0 &&
+-      kind !== 0xff
+-    ) {
++    if (isPresentBlock({ kind, magic32, offset, size }, bytes.length)) {
+       const body = bytes.slice(offset, offset + size)
+       checksumComputed = computeChecksum32(body)
+       checksumValid = checksumComputed === checksum32
+       if (kind === 0 || kind === 1) {
+         playState = parsePlayState(bytes, offset, size)
+       }
+     }
+ 
+     blocks.push({
+       index: i,
+@@ -198,20 +207,65 @@ function parseFromBytes(fileName: string, bytes: Uint8Array): ParsedSaveFile {
+     blocks,
+     bytes,
+   }
+ }
+ 
+ export async function parseSaveFile(file: File): Promise<ParsedSaveFile> {
+   const bytes = new Uint8Array(await file.arrayBuffer())
+   return parseFromBytes(file.name, bytes)
+ }
+ 
++export function readBlockBytes(parsed: ParsedSaveFile, blockIndex: number): Uint8Array {
++  const block = parsed.blocks[blockIndex]
++  if (!block || !isPresentBlock(block, parsed.bytes.length)) {
++    throw new Error(SAVE_CODEC_ERROR_KEYS.invalidBlock)
++  }
++  return parsed.bytes.slice(block.offset, block.offset + block.size)
++}
++
++export function updateBlockBytes(
++  parsed: ParsedSaveFile,
++  blockIndex: number,
++  offsetInBlock: number,
++  patch: Uint8Array,
++): ParsedSaveFile {
++  const block = parsed.blocks[blockIndex]
++  if (!block || !isPresentBlock(block, parsed.bytes.length)) {
++    throw new Error(SAVE_CODEC_ERROR_KEYS.invalidBlock)
++  }
++  if (
++    !Number.isFinite(offsetInBlock) ||
++    !Number.isInteger(offsetInBlock) ||
++    offsetInBlock < 0 ||
++    offsetInBlock + patch.length > block.size
++  ) {
++    throw new Error(SAVE_CODEC_ERROR_KEYS.patchOutOfRange)
++  }
++
++  const bytes = parsed.bytes.slice()
++  bytes.set(patch, block.offset + offsetInBlock)
++
++  const blockBody = bytes.slice(block.offset, block.offset + block.size)
++  writeU32(
++    bytes,
++    BLOCK_INFO_START + blockIndex * BLOCK_INFO_SIZE + 0x0c,
++    computeChecksum32(blockBody),
++  )
++  writeU16(
++    bytes,
++    GENERAL_CHECKSUM_OFFSET,
++    computeChecksum16(bytes.slice(0, GENERAL_CHECKSUM_SIZE)),
++  )
++
++  return parseFromBytes(parsed.fileName, bytes)
++}
++
+ export function updatePlayState(
+   parsed: ParsedSaveFile,
+   blockIndex: number,
+   patch: PlayStatePatch,
+ ): ParsedSaveFile {
+   const block = parsed.blocks[blockIndex]
+   if (!block || !block.playState) {
+     throw new Error('Selected block is not editable.')
+   }
+ 

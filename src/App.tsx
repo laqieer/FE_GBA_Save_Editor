@@ -6,7 +6,7 @@ import {
   serializeSaveFile,
   type ParsedSaveFile,
 } from './lib/saveCodec'
-import { isSupportedSaveFile } from './lib/fileValidation'
+import { isSupportedSaveFile, KNOWN_SAVE_EXTENSIONS } from './lib/fileValidation'
 import {
   buildEditorBlockKey,
   getEditableBlockIndexes,
@@ -71,7 +71,8 @@ function App() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = parsed.fileName.replace(/\.sav$/i, '') + '-edited.sav'
+    // strip known extensions before appending -edited.sav
+    a.download = parsed.fileName.replace(/(\.sav|\.sps)$/i, '') + '-edited.sav'
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -113,7 +114,7 @@ function App() {
       <section className="toolbar">
         <label className="file-input">
           {t('upload')}
-          <input type="file" accept=".sav,.sps" onChange={(e) => onFileChange(e.target.files?.[0])} />
+          <input type="file" accept={KNOWN_SAVE_EXTENSIONS.join(',')} onChange={(e) => onFileChange(e.target.files?.[0])} />
         </label>
       </section>
 

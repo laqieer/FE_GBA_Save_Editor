@@ -1,0 +1,998 @@
+# Review package: 7714123..3e1c8cf
+
+## Commits
+3e1c8cf feat: group and page structured editor domains
+
+## Files changed
+ .superpowers/sdd/msf-task-5-report.md   |  21 +++
+ src/App.css                             |  77 +++++++++
+ src/components/BlockStructuredTable.tsx | 283 +++++++++++++++++++++++++-------
+ src/i18n.test.ts                        |  16 ++
+ src/i18n.ts                             |  48 ++++++
+ src/lib/structuredTableLayout.test.ts   | 133 +++++++++++++++
+ src/lib/structuredTableLayout.ts        | 170 +++++++++++++++++++
+ 7 files changed, 690 insertions(+), 58 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/msf-task-5-report.md b/.superpowers/sdd/msf-task-5-report.md
+new file mode 100644
+index 0000000..8e883f7
+--- /dev/null
++++ b/.superpowers/sdd/msf-task-5-report.md
+@@ -0,0 +1,21 @@
++# Task 5 Implementation Report
++
++## Summary
++- Added grouped structured-editor layout helpers that organize rows by domain/group and page large domains in fixed slices.
++- Updated `BlockStructuredTable` to render domain-level pages with per-group collapse controls while keeping existing apply/edit interactions intact.
++- Added localized structured UI labels and styling for grouped sections.
++
++## Safety / Behavior
++- Drafts and validation errors still flow through the existing `editorDraftState` reconciliation logic, so paging/collapse only affects what is mounted.
++- Domain page indexes are clamped when rows or blocks change, preventing stale page state after edits or block switches.
++- Group collapse state is preserved within a block, and technical/raw groups start collapsed to reduce noise.
++
++## Tests
++- Added `src/lib/structuredTableLayout.test.ts` for grouping, domain paging, and default-collapse behavior.
++- Extended `src/i18n.test.ts` to cover the new structured UI copy.
++- Verified with `npm run test:run`, `npm run build`, and `npm run lint`.
++
++## Self-review
++- Initial review found that paging was incorrectly applied per group; updated the implementation to page at the domain level to match the brief.
++- Re-review found no remaining material issues in the current diff.
++- No known follow-up work is required for Task 5.
+diff --git a/src/App.css b/src/App.css
+index a82150a..92bbc7c 100644
+--- a/src/App.css
++++ b/src/App.css
+@@ -137,20 +137,97 @@ button:disabled {
+   border-color: #225cff;
+   color: #ffffff;
+ }
+ 
+ .table-wrapper {
+   overflow: auto;
+   border: 1px solid #e6ebf4;
+   border-radius: 0.75rem;
+ }
+ 
++.structured-groups,
++.structured-domain-section {
++  display: flex;
++  flex-direction: column;
++  gap: 0.75rem;
++}
++
++.structured-domain-title,
++.structured-domain-meta,
++.structured-group-title,
++.structured-group-meta {
++  margin: 0;
++}
++
++.structured-domain-header {
++  display: flex;
++  align-items: flex-start;
++  justify-content: space-between;
++  gap: 0.75rem;
++  flex-wrap: wrap;
++}
++
++.structured-domain-copy,
++.structured-group-copy,
++.structured-group-controls {
++  display: flex;
++  gap: 0.5rem;
++  flex-wrap: wrap;
++}
++
++.structured-domain-copy {
++  flex-direction: column;
++}
++
++.structured-domain-title {
++  font-size: 1rem;
++}
++
++.structured-group {
++  border: 1px solid #e6ebf4;
++  border-radius: 0.75rem;
++  background: #fbfcff;
++}
++
++.structured-group-header {
++  display: flex;
++  align-items: flex-start;
++  justify-content: space-between;
++  gap: 0.75rem;
++  padding: 0.75rem;
++  flex-wrap: wrap;
++}
++
++.structured-group-copy {
++  flex-direction: column;
++}
++
++.structured-group-controls {
++  align-items: center;
++}
++
++.structured-domain-meta,
++.structured-group-meta,
++.structured-group-page-status {
++  color: #59657c;
++  font-size: 0.85rem;
++}
++
++.structured-group-body {
++  padding: 0 0.75rem 0.75rem;
++}
++
++.structured-group-body .table-wrapper {
++  border: 0;
++  border-radius: 0;
++}
++
+ .hex-toolbar,
+ .hex-pagination {
+   display: flex;
+   align-items: center;
+   gap: 0.5rem;
+   flex-wrap: wrap;
+ }
+ 
+ .hex-toolbar {
+   justify-content: space-between;
+diff --git a/src/components/BlockStructuredTable.tsx b/src/components/BlockStructuredTable.tsx
+index 8e99c78..f429024 100644
+--- a/src/components/BlockStructuredTable.tsx
++++ b/src/components/BlockStructuredTable.tsx
+@@ -1,17 +1,22 @@
+ import { useEffect, useMemo, useRef, useState } from 'react'
+ import { useTranslation } from 'react-i18next'
+ import {
+   reconcileDraftErrors,
+   reconcileDraftValues,
+ } from '../lib/editorDraftState'
+ import type { FieldRow } from '../lib/structuredEditor'
++import {
++  STRUCTURED_DOMAIN_PAGE_SIZE,
++  groupRowsByDomainAndGroup,
++  paginateStructuredRows,
++} from '../lib/structuredTableLayout'
+ 
+ type BlockStructuredTableProps = {
+   blockKey: string
+   rows: FieldRow[]
+   onApplyEdit: (rowKey: string, nextValue: string) => void
+ }
+ 
+ function formatRowValue(value: number | string): string {
+   return String(value)
+ }
+@@ -33,36 +38,44 @@ function toTranslatedError(
+   }
+   return t('editorUnknownError')
+ }
+ 
+ export function BlockStructuredTable({
+   blockKey,
+   rows,
+   onApplyEdit,
+ }: BlockStructuredTableProps) {
+   const { t } = useTranslation()
++  const groupedRows = useMemo(() => groupRowsByDomainAndGroup(rows), [rows])
++  const groups = useMemo(
++    () => groupedRows.flatMap((section) => section.groups),
++    [groupedRows],
++  )
+   const canonicalValues = useMemo(
+     () =>
+       Object.fromEntries(
+         rows.map((row) => [row.key, formatRowValue(row.value)]),
+       ) as Record<string, string>,
+     [rows],
+   )
+   const previousCanonicalValues = useRef(canonicalValues)
+   const previousBlockKey = useRef(blockKey)
+   const [state, setState] = useState<{
+     drafts: Record<string, string>
+     errors: Record<string, string>
+   }>({
+     drafts: canonicalValues,
+     errors: {},
+   })
++  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
++  const [domainPages, setDomainPages] = useState<Record<string, number>>({})
++  const previousLayoutBlockKey = useRef(blockKey)
+ 
+   useEffect(() => {
+     setState((current) => {
+       const preserveDirtyState = previousBlockKey.current === blockKey
+       const nextState = {
+         drafts: reconcileDraftValues(
+           current.drafts,
+           previousCanonicalValues.current,
+           canonicalValues,
+           preserveDirtyState,
+@@ -74,20 +87,48 @@ export function BlockStructuredTable({
+           canonicalValues,
+           preserveDirtyState,
+         ),
+       }
+       previousCanonicalValues.current = canonicalValues
+       previousBlockKey.current = blockKey
+       return nextState
+     })
+   }, [blockKey, canonicalValues])
+ 
++  useEffect(() => {
++    const preserveGroupState = previousLayoutBlockKey.current === blockKey
++
++    setCollapsedGroups((current) => {
++      const next: Record<string, boolean> = {}
++      for (const group of groups) {
++        next[group.id] = preserveGroupState
++          ? current[group.id] ?? group.defaultCollapsed
++          : group.defaultCollapsed
++      }
++      return next
++    })
++    setDomainPages((current) => {
++      const next: Record<string, number> = {}
++      for (const section of groupedRows) {
++        const currentPage = preserveGroupState ? current[section.id] ?? 0 : 0
++        const lastPage = Math.max(
++          0,
++          Math.ceil(section.rows.length / STRUCTURED_DOMAIN_PAGE_SIZE) - 1,
++        )
++        next[section.id] = Math.min(Math.max(0, currentPage), lastPage)
++      }
++      return next
++    })
++
++    previousLayoutBlockKey.current = blockKey
++  }, [blockKey, groupedRows, groups])
++
+   function clearError(rowKey: string) {
+     setState((current) => {
+       if (!(rowKey in current.errors)) {
+         return current
+       }
+       const next = { ...current.errors }
+       delete next[rowKey]
+       return {
+         ...current,
+         errors: next,
+@@ -104,76 +145,202 @@ export function BlockStructuredTable({
+       setState((current) => ({
+         ...current,
+         errors: {
+           ...current.errors,
+           [rowKey]: toTranslatedError(t, error),
+         },
+       }))
+     }
+   }
+ 
++  function renderRow(row: FieldRow) {
++    const fieldLabel = t(row.labelKey, { defaultValue: row.labelKey })
++    const error = state.errors[row.key]
++    const draftValue = state.drafts[row.key] ?? canonicalValues[row.key] ?? ''
++    const isDirty = draftValue !== canonicalValues[row.key]
++
++    return (
++      <tr key={row.key}>
++        <td className="mono">{formatOffset(row.offset)}</td>
++        <td>{fieldLabel}</td>
++        <td className="mono">{formatTypeLabel(row.type)}</td>
++        <td>{row.size}</td>
++        <td>
++          <div className="field-input-group">
++            <input
++              className={`field-input ${error ? 'input-error' : ''}`}
++              spellCheck={false}
++              value={draftValue}
++              onChange={(event) => {
++                const nextValue = event.target.value
++                setState((current) => ({
++                  ...current,
++                  drafts: {
++                    ...current.drafts,
++                    [row.key]: nextValue,
++                  },
++                }))
++                clearError(row.key)
++              }}
++              onKeyDown={(event) => {
++                if (event.key === 'Enter') {
++                  event.preventDefault()
++                  applyRow(row.key)
++                }
++              }}
++            />
++            {error && <p className="inline-error">{error}</p>}
++          </div>
++        </td>
++        <td className="row-actions">
++          <button type="button" onClick={() => applyRow(row.key)}>
++            {isDirty ? t('apply') : t('reapply')}
++          </button>
++        </td>
++      </tr>
++    )
++  }
++
+   return (
+-    <div className="table-wrapper">
+-      <table className="editor-table">
+-        <thead>
+-          <tr>
+-            <th>{t('offset')}</th>
+-            <th>{t('field')}</th>
+-            <th>{t('type')}</th>
+-            <th>{t('size')}</th>
+-            <th>{t('value')}</th>
+-            <th>{t('actions')}</th>
+-          </tr>
+-        </thead>
+-        <tbody>
+-          {rows.map((row) => {
+-            const fieldLabel = t(row.labelKey, { defaultValue: row.labelKey })
+-            const error = state.errors[row.key]
+-            const draftValue = state.drafts[row.key] ?? canonicalValues[row.key] ?? ''
+-            const isDirty = draftValue !== canonicalValues[row.key]
++    <div className="structured-groups">
++      {groupedRows.map((section) => (
++        <section className="structured-domain-section" key={section.id}>
++          {(() => {
++            const page = paginateStructuredRows(
++              section.rows,
++              domainPages[section.id] ?? 0,
++            )
++            const visibleGroups =
++              groupRowsByDomainAndGroup(page.rows).find(
++                (candidate) => candidate.id === section.id,
++              )?.groups ?? []
+ 
+             return (
+-              <tr key={row.key}>
+-                <td className="mono">{formatOffset(row.offset)}</td>
+-                <td>{fieldLabel}</td>
+-                <td className="mono">{formatTypeLabel(row.type)}</td>
+-                <td>{row.size}</td>
+-                <td>
+-                  <div className="field-input-group">
+-                    <input
+-                      className={`field-input ${error ? 'input-error' : ''}`}
+-                      spellCheck={false}
+-                      value={draftValue}
+-                      onChange={(event) => {
+-                        const nextValue = event.target.value
+-                        setState((current) => ({
+-                          ...current,
+-                          drafts: {
+-                            ...current.drafts,
+-                            [row.key]: nextValue,
+-                          },
+-                        }))
+-                        clearError(row.key)
+-                      }}
+-                      onKeyDown={(event) => {
+-                        if (event.key === 'Enter') {
+-                          event.preventDefault()
+-                          applyRow(row.key)
+-                        }
+-                      }}
+-                    />
+-                    {error && <p className="inline-error">{error}</p>}
++              <>
++                <div className="structured-domain-header">
++                  <div className="structured-domain-copy">
++                    <h3 className="structured-domain-title">
++                      {t(section.title.labelKey, {
++                        ...section.title.options,
++                        defaultValue: section.title.defaultLabel,
++                      })}
++                    </h3>
++                    <p className="structured-domain-meta">
++                      {t('structuredEditor.fieldCount', {
++                        count: section.rows.length,
++                        defaultValue: `${section.rows.length} fields`,
++                      })}
++                    </p>
+                   </div>
+-                </td>
+-                <td className="row-actions">
+-                  <button type="button" onClick={() => applyRow(row.key)}>
+-                    {isDirty ? t('apply') : t('reapply')}
+-                  </button>
+-                </td>
+-              </tr>
++
++                  {page.totalPages > 1 && (
++                    <div className="structured-group-controls">
++                      <button
++                        type="button"
++                        disabled={page.currentPage === 0}
++                        onClick={() =>
++                          setDomainPages((current) => ({
++                            ...current,
++                            [section.id]: Math.max(0, page.currentPage - 1),
++                          }))
++                        }
++                      >
++                        {t('previous')}
++                      </button>
++                      <span className="structured-group-page-status">
++                        {t('structuredEditor.pageStatus', {
++                          current: page.currentPage + 1,
++                          total: page.totalPages,
++                          defaultValue: `Page ${page.currentPage + 1} / ${page.totalPages}`,
++                        })}
++                      </span>
++                      <button
++                        type="button"
++                        disabled={page.currentPage >= page.totalPages - 1}
++                        onClick={() =>
++                          setDomainPages((current) => ({
++                            ...current,
++                            [section.id]: Math.min(
++                              page.totalPages - 1,
++                              page.currentPage + 1,
++                            ),
++                          }))
++                        }
++                      >
++                        {t('next')}
++                      </button>
++                    </div>
++                  )}
++                </div>
++
++                {visibleGroups.map((group) => {
++                  const fullGroup =
++                    section.groups.find((candidate) => candidate.id === group.id) ?? group
++                  const isCollapsed =
++                    collapsedGroups[group.id] ?? fullGroup.defaultCollapsed
++
++                  return (
++                    <section className="structured-group" key={group.id}>
++                      <div className="structured-group-header">
++                        <div className="structured-group-copy">
++                          <h4 className="structured-group-title">
++                            {t(fullGroup.title.labelKey, {
++                              ...fullGroup.title.options,
++                              defaultValue: fullGroup.title.defaultLabel,
++                            })}
++                          </h4>
++                          <p className="structured-group-meta">
++                            {t('structuredEditor.fieldCount', {
++                              count: fullGroup.rows.length,
++                              defaultValue: `${fullGroup.rows.length} fields`,
++                            })}
++                          </p>
++                        </div>
++
++                        <div className="structured-group-controls">
++                          <button
++                            type="button"
++                            aria-expanded={!isCollapsed}
++                            onClick={() =>
++                              setCollapsedGroups((current) => ({
++                                ...current,
++                                [group.id]: !isCollapsed,
++                              }))
++                            }
++                          >
++                            {isCollapsed
++                              ? t('structuredEditor.expandGroup')
++                              : t('structuredEditor.collapseGroup')}
++                          </button>
++                        </div>
++                      </div>
++
++                      {!isCollapsed && (
++                        <div className="structured-group-body">
++                          <div className="table-wrapper">
++                            <table className="editor-table">
++                              <thead>
++                                <tr>
++                                  <th>{t('offset')}</th>
++                                  <th>{t('field')}</th>
++                                  <th>{t('type')}</th>
++                                  <th>{t('size')}</th>
++                                  <th>{t('value')}</th>
++                                  <th>{t('actions')}</th>
++                                </tr>
++                              </thead>
++                              <tbody>{group.rows.map(renderRow)}</tbody>
++                            </table>
++                          </div>
++                        </div>
++                      )}
++                    </section>
++                  )
++                })}
++              </>
+             )
+-          })}
+-        </tbody>
+-      </table>
++          })()}
++        </section>
++      ))}
+     </div>
+   )
+ }
+diff --git a/src/i18n.test.ts b/src/i18n.test.ts
+index cf1c740..3d994dc 100644
+--- a/src/i18n.test.ts
++++ b/src/i18n.test.ts
+@@ -18,20 +18,36 @@ describe('i18n', () => {
+       'hexEditor.pageStatus',
+       'hexEditor.byteRange',
+       'hexEditor.invalidByte',
+       'saveCodec.invalidBlock',
+       'saveCodec.patchOutOfRange',
+       'structuredEditor.invalidRow',
+       'structuredEditor.invalidInteger',
+       'structuredEditor.outOfRange',
+       'structuredEditor.invalidBytes',
+       'structuredEditor.textTooLong',
++      'structuredEditor.pageStatus',
++      'structuredEditor.expandGroup',
++      'structuredEditor.collapseGroup',
++      'structuredEditor.fieldCount',
++      'structuredEditor.domain.playState',
++      'structuredEditor.domain.units',
++      'structuredEditor.domain.inventory',
++      'structuredEditor.domain.progressFlags',
++      'structuredEditor.domain.technical',
++      'structuredEditor.group.playState',
++      'structuredEditor.group.unit',
++      'structuredEditor.group.inventoryConvoy',
++      'structuredEditor.group.progressChapter',
++      'structuredEditor.group.progressSupport',
++      'structuredEditor.group.progressWorld',
++      'structuredEditor.group.unknown',
+       'field.unit.characterId',
+       'field.unit.classId',
+       'field.unit.level',
+       'field.unit.exp',
+       'field.fe6Unit.characterId',
+       'field.fe6Unit.classId',
+       'field.fe6Unit.level',
+       'field.fe6Unit.exp',
+       'field.fe7Unit.characterId',
+       'field.fe7Unit.classId',
+diff --git a/src/i18n.ts b/src/i18n.ts
+index cd0f061..cf62ca6 100644
+--- a/src/i18n.ts
++++ b/src/i18n.ts
+@@ -50,20 +50,36 @@ const resources = {
+       'hexEditor.pageStatus': 'Page {{current}} / {{total}}',
+       'hexEditor.byteRange': '{{start}}-{{end}}',
+       'hexEditor.invalidByte': 'Enter exactly two hexadecimal characters.',
+       'saveCodec.invalidBlock': 'This block is missing or invalid and cannot be edited.',
+       'saveCodec.patchOutOfRange': 'That edit is outside the selected block.',
+       'structuredEditor.invalidRow': 'This field is not available for the selected block.',
+       'structuredEditor.invalidInteger': 'Enter a whole number.',
+       'structuredEditor.outOfRange': 'Value is outside the valid range for this field.',
+       'structuredEditor.invalidBytes': 'Enter hexadecimal bytes such as AB or 0xAB.',
+       'structuredEditor.textTooLong': 'Text is too long for this field.',
++      'structuredEditor.pageStatus': 'Page {{current}} / {{total}}',
++      'structuredEditor.expandGroup': 'Expand group',
++      'structuredEditor.collapseGroup': 'Collapse group',
++      'structuredEditor.fieldCount': '{{count}} fields',
++      'structuredEditor.domain.playState': 'Play state',
++      'structuredEditor.domain.units': 'Units',
++      'structuredEditor.domain.inventory': 'Inventory',
++      'structuredEditor.domain.progressFlags': 'Progress flags',
++      'structuredEditor.domain.technical': 'Technical',
++      'structuredEditor.group.playState': 'Play state',
++      'structuredEditor.group.unit': 'Unit {{index}}',
++      'structuredEditor.group.inventoryConvoy': 'Convoy',
++      'structuredEditor.group.progressChapter': 'Chapter flags',
++      'structuredEditor.group.progressSupport': 'Support flags',
++      'structuredEditor.group.progressWorld': 'World flags',
++      'structuredEditor.group.unknown': 'Raw bytes',
+       'field.playst.gold': 'Gold',
+       'field.playst.saveSlot': 'Save slot',
+       'field.playst.chapterIndex': 'Chapter index',
+       'field.playst.chapterTurn': 'Chapter turn',
+       'field.playst.chapterStateBits': 'Chapter state bits',
+       'field.playst.playthroughId': 'Playthrough ID',
+       'field.playst.chapterMode': 'Chapter mode',
+       'field.playst.playerName': 'Player name',
+       'field.unit.characterId': 'Unit character ID',
+       'field.unit.classId': 'Unit class ID',
+@@ -157,20 +173,36 @@ const resources = {
+       'hexEditor.pageStatus': '{{current}} / {{total}} ページ',
+       'hexEditor.byteRange': '{{start}}-{{end}}',
+       'hexEditor.invalidByte': '16進数2桁で入力してください。',
+       'saveCodec.invalidBlock': 'このブロックは欠損または無効なため編集できません。',
+       'saveCodec.patchOutOfRange': '選択中ブロックの範囲外です。',
+       'structuredEditor.invalidRow': 'このブロックではこの項目を編集できません。',
+       'structuredEditor.invalidInteger': '整数を入力してください。',
+       'structuredEditor.outOfRange': '値がこの項目の範囲外です。',
+       'structuredEditor.invalidBytes': 'AB または 0xAB のような16進数を入力してください。',
+       'structuredEditor.textTooLong': '文字列が長すぎます。',
++      'structuredEditor.pageStatus': '{{current}} / {{total}} ページ',
++      'structuredEditor.expandGroup': 'グループを展開',
++      'structuredEditor.collapseGroup': 'グループを折りたたむ',
++      'structuredEditor.fieldCount': '{{count}} 件',
++      'structuredEditor.domain.playState': 'プレイ状態',
++      'structuredEditor.domain.units': 'ユニット',
++      'structuredEditor.domain.inventory': '持ち物',
++      'structuredEditor.domain.progressFlags': '進行フラグ',
++      'structuredEditor.domain.technical': '技術項目',
++      'structuredEditor.group.playState': 'プレイ状態',
++      'structuredEditor.group.unit': 'ユニット {{index}}',
++      'structuredEditor.group.inventoryConvoy': '輸送隊',
++      'structuredEditor.group.progressChapter': '章フラグ',
++      'structuredEditor.group.progressSupport': '支援フラグ',
++      'structuredEditor.group.progressWorld': 'ワールドフラグ',
++      'structuredEditor.group.unknown': '生バイト',
+       'field.playst.gold': '所持金',
+       'field.playst.saveSlot': 'セーブ番号',
+       'field.playst.chapterIndex': '章番号',
+       'field.playst.chapterTurn': 'ターン',
+       'field.playst.chapterStateBits': '章状態ビット',
+       'field.playst.playthroughId': '周回ID',
+       'field.playst.chapterMode': '章モード',
+       'field.playst.playerName': '主人公名',
+       'field.unit.characterId': 'ユニットID',
+       'field.unit.classId': '兵種ID',
+@@ -264,20 +296,36 @@ const resources = {
+       'hexEditor.pageStatus': '第 {{current}} / {{total}} 页',
+       'hexEditor.byteRange': '{{start}}-{{end}}',
+       'hexEditor.invalidByte': '请输入恰好两位十六进制字符。',
+       'saveCodec.invalidBlock': '该区块缺失或无效，无法编辑。',
+       'saveCodec.patchOutOfRange': '修改超出了当前区块范围。',
+       'structuredEditor.invalidRow': '当前区块不支持该字段。',
+       'structuredEditor.invalidInteger': '请输入整数。',
+       'structuredEditor.outOfRange': '该字段的值超出允许范围。',
+       'structuredEditor.invalidBytes': '请输入 AB 或 0xAB 形式的十六进制字节。',
+       'structuredEditor.textTooLong': '文本长度超出该字段限制。',
++      'structuredEditor.pageStatus': '第 {{current}} / {{total}} 页',
++      'structuredEditor.expandGroup': '展开分组',
++      'structuredEditor.collapseGroup': '折叠分组',
++      'structuredEditor.fieldCount': '{{count}} 项',
++      'structuredEditor.domain.playState': '流程状态',
++      'structuredEditor.domain.units': '单位',
++      'structuredEditor.domain.inventory': '道具',
++      'structuredEditor.domain.progressFlags': '进度标记',
++      'structuredEditor.domain.technical': '技术字段',
++      'structuredEditor.group.playState': '流程状态',
++      'structuredEditor.group.unit': '单位 {{index}}',
++      'structuredEditor.group.inventoryConvoy': '运输队',
++      'structuredEditor.group.progressChapter': '章节标记',
++      'structuredEditor.group.progressSupport': '支援标记',
++      'structuredEditor.group.progressWorld': '世界标记',
++      'structuredEditor.group.unknown': '原始字节',
+       'field.playst.gold': '金钱',
+       'field.playst.saveSlot': '存档位',
+       'field.playst.chapterIndex': '章节索引',
+       'field.playst.chapterTurn': '章节回合',
+       'field.playst.chapterStateBits': '章节状态位',
+       'field.playst.playthroughId': '周目 ID',
+       'field.playst.chapterMode': '章节模式',
+       'field.playst.playerName': '主角名称',
+       'field.unit.characterId': '单位角色 ID',
+       'field.unit.classId': '单位职业 ID',
+diff --git a/src/lib/structuredTableLayout.test.ts b/src/lib/structuredTableLayout.test.ts
+new file mode 100644
+index 0000000..cc10bdb
+--- /dev/null
++++ b/src/lib/structuredTableLayout.test.ts
+@@ -0,0 +1,133 @@
++import { describe, expect, it } from 'vitest'
++import type { FieldRow } from './structuredEditor'
++import {
++  STRUCTURED_DOMAIN_PAGE_SIZE,
++  groupRowsByDomainAndGroup,
++  paginateStructuredRows,
++} from './structuredTableLayout'
++
++function makeRow(overrides: Partial<FieldRow> & Pick<FieldRow, 'key'>): FieldRow {
++  return {
++    key: overrides.key,
++    domain: overrides.domain ?? 'playState',
++    groupKey: overrides.groupKey ?? 'playst',
++    memberPath: overrides.memberPath ?? overrides.key,
++    offset: overrides.offset ?? 0,
++    size: overrides.size ?? 1,
++    type: overrides.type ?? 'u8',
++    labelKey: overrides.labelKey ?? 'field.playst.gold',
++    value: overrides.value ?? 0,
++    bitIndex: overrides.bitIndex,
++    unitIndex: overrides.unitIndex,
++  }
++}
++
++describe('structuredTableLayout', () => {
++  it('groups rows by domain and group while preserving first-seen order', () => {
++    const rows: FieldRow[] = [
++      makeRow({ key: 'playst.gold', domain: 'playState', groupKey: 'playst' }),
++      makeRow({
++        key: 'unit.0.level',
++        domain: 'units',
++        groupKey: 'units.0',
++        memberPath: 'units[0].level',
++        unitIndex: 0,
++      }),
++      makeRow({
++        key: 'unit.0.exp',
++        domain: 'units',
++        groupKey: 'units.0',
++        memberPath: 'units[0].exp',
++        unitIndex: 0,
++      }),
++      makeRow({
++        key: 'inventory.convoy.0.itemId',
++        domain: 'inventory',
++        groupKey: 'inventory.convoy',
++        memberPath: 'inventory.convoy[0].itemId',
++      }),
++      makeRow({
++        key: 'unit.1.level',
++        domain: 'units',
++        groupKey: 'units.1',
++        memberPath: 'units[1].level',
++        unitIndex: 1,
++      }),
++    ]
++
++    const grouped = groupRowsByDomainAndGroup(rows)
++
++    expect(grouped.map((section) => section.domain)).toEqual([
++      'playState',
++      'units',
++      'inventory',
++    ])
++    expect(grouped[1]?.groups.map((group) => group.groupKey)).toEqual([
++      'units.0',
++      'units.1',
++    ])
++    expect(grouped[1]?.groups[0]?.rows.map((row) => row.key)).toEqual([
++      'unit.0.level',
++      'unit.0.exp',
++    ])
++  })
++
++  it('caps visible rows per large domain page and keeps group boundaries inside the slice', () => {
++    const rows = [
++      ...Array.from({ length: 25 }, (_, index) =>
++        makeRow({
++          key: `unit.0.field.${index}`,
++          domain: 'units',
++          groupKey: 'units.0',
++          memberPath: `units[0].field${index}`,
++          unitIndex: 0,
++          offset: index,
++        }),
++      ),
++      ...Array.from({ length: STRUCTURED_DOMAIN_PAGE_SIZE - 25 + 5 }, (_, index) =>
++        makeRow({
++          key: `unit.1.field.${index}`,
++          domain: 'units',
++          groupKey: 'units.1',
++          memberPath: `units[1].field${index}`,
++          unitIndex: 1,
++          offset: index + 25,
++        }),
++      ),
++    ]
++    const grouped = groupRowsByDomainAndGroup(rows)
++    const section = grouped[0]
++
++    expect(section).toBeDefined()
++
++    const firstPage = paginateStructuredRows(section!.rows, 0)
++    const lastPage = paginateStructuredRows(section!.rows, 999)
++    const firstPageGroups = groupRowsByDomainAndGroup(firstPage.rows)[0]?.groups
++
++    expect(firstPage.rows).toHaveLength(STRUCTURED_DOMAIN_PAGE_SIZE)
++    expect(firstPage.totalPages).toBe(2)
++    expect(lastPage.currentPage).toBe(1)
++    expect(lastPage.rows).toHaveLength(5)
++    expect(firstPageGroups?.map((group) => group.groupKey)).toEqual([
++      'units.0',
++      'units.1',
++    ])
++    expect(firstPageGroups?.[1]?.rows).toHaveLength(7)
++  })
++
++  it('marks technical groups collapsed by default', () => {
++    const grouped = groupRowsByDomainAndGroup([
++      makeRow({
++        key: 'bytes.0000',
++        domain: 'technical',
++        groupKey: 'unknown',
++        memberPath: 'bytes.0000',
++        type: 'bytes',
++        labelKey: 'field.unknown.bytes',
++        value: 'ABCD',
++      }),
++    ])
++
++    expect(grouped[0]?.groups[0]?.defaultCollapsed).toBe(true)
++  })
++})
+diff --git a/src/lib/structuredTableLayout.ts b/src/lib/structuredTableLayout.ts
+new file mode 100644
+index 0000000..b6b1b57
+--- /dev/null
++++ b/src/lib/structuredTableLayout.ts
+@@ -0,0 +1,170 @@
++import type { FieldRow } from './structuredEditor'
++
++type LabelDescriptor = {
++  labelKey: string
++  defaultLabel: string
++  options?: Record<string, number | string>
++}
++
++export type StructuredRowGroup = {
++  id: string
++  domain: FieldRow['domain']
++  groupKey: string
++  rows: FieldRow[]
++  title: LabelDescriptor
++  defaultCollapsed: boolean
++}
++
++export type StructuredDomainSection = {
++  id: FieldRow['domain']
++  domain: FieldRow['domain']
++  title: LabelDescriptor
++  rows: FieldRow[]
++  groups: StructuredRowGroup[]
++}
++
++export const STRUCTURED_DOMAIN_PAGE_SIZE = 32
++
++const DOMAIN_LABELS: Record<FieldRow['domain'], LabelDescriptor> = {
++  playState: {
++    labelKey: 'structuredEditor.domain.playState',
++    defaultLabel: 'Play state',
++  },
++  units: {
++    labelKey: 'structuredEditor.domain.units',
++    defaultLabel: 'Units',
++  },
++  inventory: {
++    labelKey: 'structuredEditor.domain.inventory',
++    defaultLabel: 'Inventory',
++  },
++  progressFlags: {
++    labelKey: 'structuredEditor.domain.progressFlags',
++    defaultLabel: 'Progress flags',
++  },
++  technical: {
++    labelKey: 'structuredEditor.domain.technical',
++    defaultLabel: 'Technical',
++  },
++}
++
++const GROUP_LABELS: Record<string, LabelDescriptor> = {
++  playst: {
++    labelKey: 'structuredEditor.group.playState',
++    defaultLabel: 'Play state',
++  },
++  'inventory.convoy': {
++    labelKey: 'structuredEditor.group.inventoryConvoy',
++    defaultLabel: 'Convoy',
++  },
++  'progressFlags.chapter': {
++    labelKey: 'structuredEditor.group.progressChapter',
++    defaultLabel: 'Chapter flags',
++  },
++  'progressFlags.support': {
++    labelKey: 'structuredEditor.group.progressSupport',
++    defaultLabel: 'Support flags',
++  },
++  'progressFlags.world': {
++    labelKey: 'structuredEditor.group.progressWorld',
++    defaultLabel: 'World flags',
++  },
++  unknown: {
++    labelKey: 'structuredEditor.group.unknown',
++    defaultLabel: 'Raw bytes',
++  },
++}
++
++function describeGroup(rows: readonly FieldRow[], groupKey: string): LabelDescriptor {
++  const directLabel = GROUP_LABELS[groupKey]
++  if (directLabel) {
++    return directLabel
++  }
++
++  const unitIndex =
++    rows.find((row) => row.unitIndex !== undefined)?.unitIndex ??
++    (/^units\.(\d+)$/.exec(groupKey)?.[1]
++      ? Number(/^units\.(\d+)$/.exec(groupKey)?.[1])
++      : undefined)
++
++  if (unitIndex !== undefined) {
++    return {
++      labelKey: 'structuredEditor.group.unit',
++      defaultLabel: `Unit ${unitIndex + 1}`,
++      options: {
++        index: unitIndex + 1,
++      },
++    }
++  }
++
++  return {
++    labelKey: `structuredEditor.group.${groupKey.replace(/[^\w]+/g, '_')}`,
++    defaultLabel: groupKey,
++  }
++}
++
++export function groupRowsByDomainAndGroup(
++  rows: readonly FieldRow[],
++): StructuredDomainSection[] {
++  const sections: StructuredDomainSection[] = []
++  const sectionIndex = new Map<FieldRow['domain'], StructuredDomainSection>()
++  const groupIndex = new Map<string, StructuredRowGroup>()
++
++  for (const row of rows) {
++    let section = sectionIndex.get(row.domain)
++    if (!section) {
++      section = {
++        id: row.domain,
++        domain: row.domain,
++        title: DOMAIN_LABELS[row.domain],
++        rows: [],
++        groups: [],
++      }
++      sectionIndex.set(row.domain, section)
++      sections.push(section)
++    }
++    section.rows.push(row)
++
++    const id = `${row.domain}:${row.groupKey}`
++    let group = groupIndex.get(id)
++    if (!group) {
++      group = {
++        id,
++        domain: row.domain,
++        groupKey: row.groupKey,
++        rows: [],
++        title: describeGroup([row], row.groupKey),
++        defaultCollapsed: row.domain === 'technical',
++      }
++      groupIndex.set(id, group)
++      section.groups.push(group)
++    }
++
++    group.rows.push(row)
++    if (group.title.defaultLabel === group.groupKey) {
++      group.title = describeGroup(group.rows, group.groupKey)
++    }
++  }
++
++  return sections
++}
++
++export function paginateStructuredRows(
++  rows: readonly FieldRow[],
++  pageIndex: number,
++  pageSize = STRUCTURED_DOMAIN_PAGE_SIZE,
++) {
++  const safePageSize = Math.max(1, Math.trunc(pageSize) || STRUCTURED_DOMAIN_PAGE_SIZE)
++  const totalPages = Math.max(1, Math.ceil(rows.length / safePageSize))
++  const currentPage = Math.min(Math.max(0, Math.trunc(pageIndex) || 0), totalPages - 1)
++  const startIndex = currentPage * safePageSize
++  const endIndex = Math.min(startIndex + safePageSize, rows.length)
++
++  return {
++    currentPage,
++    totalPages,
++    startIndex,
++    endIndex,
++    rows: rows.slice(startIndex, endIndex),
++  }
++}

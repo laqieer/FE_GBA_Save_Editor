@@ -1,0 +1,389 @@
+# Review package: 81b62b3..760b2c3
+
+## Commits
+760b2c3 feat: support bitfield editing in structured rows
+
+## Files changed
+ .superpowers/sdd/msf-task-4-report.md |  21 +++++++
+ src/lib/blockSchema.ts                |  10 +++-
+ src/lib/structuredEditor.test.ts      |  27 +++++++++
+ src/lib/structuredEditor.ts           | 108 ++++++++++++++++++++++++++--------
+ 4 files changed, 137 insertions(+), 29 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/msf-task-4-report.md b/.superpowers/sdd/msf-task-4-report.md
+new file mode 100644
+index 0000000..094ce6e
+--- /dev/null
++++ b/.superpowers/sdd/msf-task-4-report.md
+@@ -0,0 +1,21 @@
++# Task 4 Implementation Report
++
++## Summary
++- Added bitfield-aware structured rows for hidden/internal flags.
++- Expanded `structuredEditor.ts` to expose `.bitN` rows from schema metadata and to patch only the targeted bit during edit application.
++- Updated FE8 unit schema to expose `units[0].stateFlags.raw` plus bit rows for `units[0].stateFlags.bit0` through `.bit7`.
++
++## Safety / Behavior
++- Structured edits still flow through `updateBlockBytes`, so canonical bytes and checksums stay in sync.
++- Invalid bit edits are rejected before mutation.
++- Existing numeric, text, and bytes editing paths remain unchanged.
++
++## Tests
++- `npm run test:run -- src/lib/structuredEditor.test.ts src/lib/saveCodec.test.ts`
++- `npm run test:run`
++- `npm run build`
++
++## Self-review
++- Verified bit rows use a stable member-path convention and preserve sibling bits.
++- Verified invalid bit input does not mutate parsed bytes.
++- No unresolved build or test issues remain.
+diff --git a/src/lib/blockSchema.ts b/src/lib/blockSchema.ts
+index c6b73ae..cd6a09b 100644
+--- a/src/lib/blockSchema.ts
++++ b/src/lib/blockSchema.ts
+@@ -7,20 +7,22 @@ export type StructuredDomain = 'playState' | 'units' | 'inventory' | 'progressFl
+ export interface BlockFieldSchema {
+   key: string
+   offset: number
+   size: 1 | 2 | 4
+   byteLength: number
+   type: FieldType
+   labelKey: string
+   domain: StructuredDomain
+   groupKey: string
+   memberPath: string
++  bitfieldPath?: string
++  bitIndices?: readonly number[]
+ }
+ 
+ type BlockFieldSchemaInput = Omit<BlockFieldSchema, 'byteLength'> & { byteLength?: number }
+ 
+ function makeField(field: BlockFieldSchemaInput): BlockFieldSchema {
+   return {
+     ...field,
+     byteLength: field.byteLength ?? field.size,
+   }
+ }
+@@ -286,28 +288,30 @@ export function buildFe8UnitSchema(): readonly BlockFieldSchema[] {
+       key: 'unit.0.affiliation',
+       offset: 0x40,
+       size: 1,
+       type: 'u8',
+       labelKey: 'field.unit.affiliation',
+       domain: 'units',
+       groupKey: 'units.0',
+       memberPath: 'units[0].affiliation',
+     }),
+     makeField({
+-      key: 'unit.0.aiFlags',
++      key: 'unit.0.stateFlags',
+       offset: 0x41,
+       size: 1,
+       type: 'u8',
+-      labelKey: 'field.unit.aiFlags',
++      labelKey: 'field.unit.stateFlags',
+       domain: 'units',
+       groupKey: 'units.0',
+-      memberPath: 'units[0].aiFlags',
++      memberPath: 'units[0].stateFlags.raw',
++      bitfieldPath: 'units[0].stateFlags',
++      bitIndices: [0, 1, 2, 3, 4, 5, 6, 7],
+     }),
+     makeField({
+       key: 'unit.0.rescueTarget',
+       offset: 0x42,
+       size: 1,
+       type: 'u8',
+       labelKey: 'field.unit.rescueTarget',
+       domain: 'units',
+       groupKey: 'units.0',
+       memberPath: 'units[0].rescueTarget',
+diff --git a/src/lib/structuredEditor.test.ts b/src/lib/structuredEditor.test.ts
+index e983631..d3f4f5c 100644
+--- a/src/lib/structuredEditor.test.ts
++++ b/src/lib/structuredEditor.test.ts
+@@ -206,34 +206,61 @@ describe('structuredEditor', () => {
+     const afterGeneric = applyStructuredEdit(afterUnitLevel, 6, genericRow!.key, nextGenericValue)
+ 
+     expect(getStructuredRows(afterGeneric, 0).find((row) => row.key === goldRow!.key)?.value).toBe(77777)
+     expect(getStructuredRows(afterGeneric, 0).find((row) => row.key === nameRow!.key)?.value).toBe('Seth')
+     expect(getStructuredRows(afterGeneric, 0).find((row) => row.key === unitLevelRow!.key)?.value).toBe(20)
+     expect(readBlockBytes(afterGeneric, 6)[0x10]).toBe(0xab)
+     expect(afterGeneric.blocks[0].checksumValid).toBe(true)
+     expect(afterGeneric.blocks[6].checksumValid).toBe(true)
+   })
+ 
++  it('applies single-bit edits without clobbering sibling bits', async () => {
++    const parsed = await parseSaveFile(buildSampleSave())
++    const beforeRaw = getStructuredRows(parsed, 0).find(
++      (row) => row.memberPath === 'units[0].stateFlags.raw',
++    )
++    const bitRow = getStructuredRows(parsed, 0).find(
++      (row) => row.memberPath === 'units[0].stateFlags.bit3',
++    )
++
++    expect(beforeRaw).toBeDefined()
++    expect(bitRow).toBeDefined()
++
++    const next = applyStructuredEdit(parsed, 0, bitRow!.key, '1')
++    const sameByteRaw = getStructuredRows(next, 0).find(
++      (row) => row.memberPath === 'units[0].stateFlags.raw',
++    )
++
++    expect(Number(sameByteRaw!.value) & 0x08).toBe(0x08)
++    expect(Number(sameByteRaw!.value) & ~0x08).toBe(Number(beforeRaw!.value) & ~0x08)
++    expect(next.blocks[0].checksumValid).toBe(true)
++  })
++
+   it('rejects invalid structured edits without mutating canonical bytes', async () => {
+     const parsed = await parseSaveFile(buildSampleSave())
+     const before = parsed.bytes.slice()
+     const saveRows = getStructuredRows(parsed, 0)
+     const saveSlotRow = saveRows.find((row) => row.labelKey === 'field.playst.saveSlot')
++    const bitRow = saveRows.find((row) => row.memberPath === 'units[0].stateFlags.bit3')
+     const genericRow = getStructuredRows(parsed, 6).find((row) => row.offset === 0x00)
+     const nameRow = saveRows.find((row) => row.labelKey === 'field.playst.playerName')
+ 
+     expect(saveSlotRow).toBeDefined()
++    expect(bitRow).toBeDefined()
+     expect(genericRow).toBeDefined()
+     expect(nameRow).toBeDefined()
+ 
+     expect(() => applyStructuredEdit(parsed, 0, saveSlotRow!.key, '300')).toThrow(
+       STRUCTURED_EDITOR_ERROR_KEYS.outOfRange,
+     )
++    expect(() => applyStructuredEdit(parsed, 0, bitRow!.key, 'maybe')).toThrow(
++      STRUCTURED_EDITOR_ERROR_KEYS.invalidInteger,
++    )
+     expect(() => applyStructuredEdit(parsed, 6, genericRow!.key, 'xyz')).toThrow(
+       STRUCTURED_EDITOR_ERROR_KEYS.invalidBytes,
+     )
+     expect(() => applyStructuredEdit(parsed, 0, nameRow!.key, '123456789012')).toThrow(
+       STRUCTURED_EDITOR_ERROR_KEYS.textTooLong,
+     )
+     expect(parsed.bytes).toEqual(before)
+   })
+ })
+diff --git a/src/lib/structuredEditor.ts b/src/lib/structuredEditor.ts
+index e29059c..d82f6b5 100644
+--- a/src/lib/structuredEditor.ts
++++ b/src/lib/structuredEditor.ts
+@@ -1,18 +1,19 @@
+ import { getBlockSchema, type BlockFieldSchema, type FieldType } from './blockSchema'
+ import { readBlockBytes, updateBlockBytes, type ParsedSaveFile } from './saveCodec'
+ 
+ export type FieldRow = {
+   key: string
+   domain: import('./blockSchema').StructuredDomain
+   groupKey: string
+   memberPath: string
++  bitIndex?: number
+   unitIndex?: number
+   offset: number
+   size: number
+   type: FieldType
+   labelKey: string
+   value: number | string
+ }
+ 
+ type ResolvedFieldRow = FieldRow & {
+   byteLength: number
+@@ -53,65 +54,93 @@ function readFixedString(bytes: Uint8Array, offset: number, size: number): strin
+     if (value === 0) break
+     chars.push(value)
+   }
+   return new TextDecoder().decode(new Uint8Array(chars))
+ }
+ 
+ function toHexString(bytes: Uint8Array): string {
+   return Array.from(bytes, (value) => value.toString(16).padStart(2, '0').toUpperCase()).join('')
+ }
+ 
++function createTechnicalLabel(memberPath: string): string {
++  return `field.tech.${memberPath.replace(/[.[\]]+/g, '_').replace(/_+$/, '')}`
++}
++
+ function readValue(bytes: Uint8Array, field: BlockFieldSchema): number | string {
+   switch (field.type) {
+     case 'u8':
+       return bytes[field.offset]
+     case 's8':
+       return readI8(bytes, field.offset)
+     case 'u16':
+       return readU16(bytes, field.offset)
+     case 'u32':
+       return readU32(bytes, field.offset)
+     case 'text':
+       return readFixedString(bytes, field.offset, field.byteLength)
+     case 'bytes':
+       return toHexString(bytes.slice(field.offset, field.offset + field.byteLength))
+   }
+ }
+ 
++function readBitValue(byte: number, bitIndex: number): number {
++  return (byte >>> bitIndex) & 1
++}
++
+ function resolveUnitIndex(field: BlockFieldSchema): number | undefined {
+   if (field.domain !== 'units') {
+     return undefined
+   }
+ 
+   const groupMatch = /^units\.(\d+)$/.exec(field.groupKey)
+   if (groupMatch) {
+     return Number(groupMatch[1])
+   }
+ 
+   const memberMatch = /^units\[(\d+)\]/.exec(field.memberPath)
+   return memberMatch ? Number(memberMatch[1]) : undefined
+ }
+ 
+ function buildKnownRows(bytes: Uint8Array, fields: readonly BlockFieldSchema[]): ResolvedFieldRow[] {
+-  return fields.map((field) => ({
+-    key: field.key,
+-    domain: field.domain,
+-    groupKey: field.groupKey,
+-    memberPath: field.memberPath,
+-    unitIndex: resolveUnitIndex(field),
+-    offset: field.offset,
+-    size: field.byteLength,
+-    byteLength: field.byteLength,
+-    type: field.type,
+-    labelKey: field.labelKey,
+-    value: readValue(bytes, field),
+-  }))
++  const rows: ResolvedFieldRow[] = []
++  for (const field of fields) {
++    const baseRow: ResolvedFieldRow = {
++      key: field.key,
++      domain: field.domain,
++      groupKey: field.groupKey,
++      memberPath: field.memberPath,
++      unitIndex: resolveUnitIndex(field),
++      offset: field.offset,
++      size: field.byteLength,
++      byteLength: field.byteLength,
++      type: field.type,
++      labelKey: field.labelKey,
++      value: readValue(bytes, field),
++    }
++    rows.push(baseRow)
++
++    if (field.bitIndices?.length) {
++      const currentByte = bytes[field.offset]
++      const bitfieldPath = field.bitfieldPath ?? field.memberPath
++      for (const bitIndex of field.bitIndices) {
++        rows.push({
++          ...baseRow,
++          key: `${field.key}.bit${bitIndex}`,
++          memberPath: `${bitfieldPath}.bit${bitIndex}`,
++          bitIndex,
++          labelKey: createTechnicalLabel(`${bitfieldPath}.bit${bitIndex}`),
++          value: readBitValue(currentByte, bitIndex),
++        })
++      }
++    }
++  }
++  return rows
+ }
+ 
+ function buildGenericRows(bytes: Uint8Array, coveredOffsets: Set<number>): ResolvedFieldRow[] {
+   const rows: ResolvedFieldRow[] = []
+   for (let offset = 0; offset < bytes.length; ) {
+     if (coveredOffsets.has(offset)) {
+       offset += 1
+       continue
+     }
+ 
+@@ -209,20 +238,42 @@ function parseBytePatch(row: ResolvedFieldRow, nextValue: string): Uint8Array {
+     throw new Error(STRUCTURED_EDITOR_ERROR_KEYS.invalidBytes)
+   }
+ 
+   const patch = new Uint8Array(row.byteLength)
+   for (let i = 0; i < row.byteLength; i += 1) {
+     patch[i] = Number.parseInt(normalized.slice(i * 2, i * 2 + 2), 16)
+   }
+   return patch
+ }
+ 
++function parseBitPatch(
++  row: ResolvedFieldRow,
++  nextValue: string,
++  blockBytes: Uint8Array,
++): Uint8Array {
++  const trimmed = nextValue.trim()
++  if (!/^(0|1|true|false)$/i.test(trimmed)) {
++    throw new Error(STRUCTURED_EDITOR_ERROR_KEYS.invalidInteger)
++  }
++
++  if (row.bitIndex === undefined || row.bitIndex < 0 || row.bitIndex > 7) {
++    throw new Error(STRUCTURED_EDITOR_ERROR_KEYS.invalidRow)
++  }
++
++  const setBit = /^(1|true)$/i.test(trimmed)
++  const currentByte = blockBytes[row.offset]
++  const nextByte = setBit
++    ? currentByte | (1 << row.bitIndex)
++    : currentByte & ~(1 << row.bitIndex)
++  return Uint8Array.from([nextByte])
++}
++
+ function parseTextPatch(row: ResolvedFieldRow, nextValue: string): Uint8Array {
+   const encoded = new TextEncoder().encode(nextValue)
+   if (encoded.length > row.byteLength) {
+     throw new Error(STRUCTURED_EDITOR_ERROR_KEYS.textTooLong)
+   }
+   const patch = new Uint8Array(row.byteLength)
+   patch.set(encoded)
+   return patch
+ }
+ 
+@@ -233,29 +284,34 @@ export function getStructuredRows(parsed: ParsedSaveFile, blockIndex: number): F
+ export function applyStructuredEdit(
+   parsed: ParsedSaveFile,
+   blockIndex: number,
+   rowKey: string,
+   nextValue: string,
+ ): ParsedSaveFile {
+   const row = getResolvedRows(parsed, blockIndex).find((candidate) => candidate.key === rowKey)
+   if (!row) {
+     throw new Error(STRUCTURED_EDITOR_ERROR_KEYS.invalidRow)
+   }
++  const blockBytes = readBlockBytes(parsed, blockIndex)
+ 
+   let patch: Uint8Array
+-  switch (row.type) {
+-    case 'u8':
+-    case 's8':
+-    case 'u16':
+-    case 'u32':
+-      patch = parseNumericPatch(row, nextValue)
+-      break
+-    case 'bytes':
+-      patch = parseBytePatch(row, nextValue)
+-      break
+-    case 'text':
+-      patch = parseTextPatch(row, nextValue)
+-      break
++  if (row.bitIndex !== undefined) {
++    patch = parseBitPatch(row, nextValue, blockBytes)
++  } else {
++    switch (row.type) {
++      case 'u8':
++      case 's8':
++      case 'u16':
++      case 'u32':
++        patch = parseNumericPatch(row, nextValue)
++        break
++      case 'bytes':
++        patch = parseBytePatch(row, nextValue)
++        break
++      case 'text':
++        patch = parseTextPatch(row, nextValue)
++        break
++    }
+   }
+ 
+   return updateBlockBytes(parsed, blockIndex, row.offset, patch)
+ }

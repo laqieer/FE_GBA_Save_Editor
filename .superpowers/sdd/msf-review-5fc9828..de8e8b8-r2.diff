@@ -1,0 +1,499 @@
+# Review package: 5fc9828..de8e8b8
+
+## Commits
+de8e8b8 fix: decouple FE6 FE7 schema from FE8
+6db4adf feat: add FE6 FE7 meaningful and technical structured schemas
+
+## Files changed
+ src/i18n.test.ts                 |   8 ++
+ src/i18n.ts                      |  24 ++++++
+ src/lib/blockSchema.test.ts      |  22 ++++++
+ src/lib/blockSchema.ts           | 154 ++++++++++++++++++++++++++++++++++++++-
+ src/lib/structuredEditor.test.ts |  48 +++++++++---
+ src/lib/structuredEditor.ts      |  15 ++++
+ 6 files changed, 258 insertions(+), 13 deletions(-)
+
+## Diff
+diff --git a/src/i18n.test.ts b/src/i18n.test.ts
+index 1a00593..790dcb6 100644
+--- a/src/i18n.test.ts
++++ b/src/i18n.test.ts
+@@ -22,20 +22,28 @@ describe('i18n', () => {
+       'saveCodec.patchOutOfRange',
+       'structuredEditor.invalidRow',
+       'structuredEditor.invalidInteger',
+       'structuredEditor.outOfRange',
+       'structuredEditor.invalidBytes',
+       'structuredEditor.textTooLong',
+       'field.unit.characterId',
+       'field.unit.classId',
+       'field.unit.level',
+       'field.unit.exp',
++      'field.fe6Unit.characterId',
++      'field.fe6Unit.classId',
++      'field.fe6Unit.level',
++      'field.fe6Unit.exp',
++      'field.fe7Unit.characterId',
++      'field.fe7Unit.classId',
++      'field.fe7Unit.level',
++      'field.fe7Unit.exp',
+       'field.unit.currentHp',
+       'field.unit.maxHp',
+       'field.unit.strength',
+       'field.unit.skill',
+       'field.unit.speed',
+       'field.unit.defense',
+       'field.unit.resistance',
+       'field.unit.luck',
+       'field.unit.constitution',
+       'field.unit.positionX',
+diff --git a/src/i18n.ts b/src/i18n.ts
+index 1dbbb8c..cd55dfe 100644
+--- a/src/i18n.ts
++++ b/src/i18n.ts
+@@ -62,20 +62,28 @@ const resources = {
+       'field.playst.chapterIndex': 'Chapter index',
+       'field.playst.chapterTurn': 'Chapter turn',
+       'field.playst.chapterStateBits': 'Chapter state bits',
+       'field.playst.playthroughId': 'Playthrough ID',
+       'field.playst.chapterMode': 'Chapter mode',
+       'field.playst.playerName': 'Player name',
+       'field.unit.characterId': 'Unit character ID',
+       'field.unit.classId': 'Unit class ID',
+       'field.unit.level': 'Unit level',
+       'field.unit.exp': 'Unit EXP',
++      'field.fe6Unit.characterId': 'FE6 unit character ID',
++      'field.fe6Unit.classId': 'FE6 unit class ID',
++      'field.fe6Unit.level': 'FE6 unit level',
++      'field.fe6Unit.exp': 'FE6 unit EXP',
++      'field.fe7Unit.characterId': 'FE7 unit character ID',
++      'field.fe7Unit.classId': 'FE7 unit class ID',
++      'field.fe7Unit.level': 'FE7 unit level',
++      'field.fe7Unit.exp': 'FE7 unit EXP',
+       'field.unit.currentHp': 'Current HP',
+       'field.unit.maxHp': 'Max HP',
+       'field.unit.strength': 'Strength',
+       'field.unit.skill': 'Skill',
+       'field.unit.speed': 'Speed',
+       'field.unit.defense': 'Defense',
+       'field.unit.resistance': 'Resistance',
+       'field.unit.luck': 'Luck',
+       'field.unit.constitution': 'Constitution',
+       'field.unit.positionX': 'Position X',
+@@ -160,20 +168,28 @@ const resources = {
+       'field.playst.chapterIndex': '章番号',
+       'field.playst.chapterTurn': 'ターン',
+       'field.playst.chapterStateBits': '章状態ビット',
+       'field.playst.playthroughId': '周回ID',
+       'field.playst.chapterMode': '章モード',
+       'field.playst.playerName': '主人公名',
+       'field.unit.characterId': 'ユニットID',
+       'field.unit.classId': '兵種ID',
+       'field.unit.level': 'レベル',
+       'field.unit.exp': '経験値',
++      'field.fe6Unit.characterId': 'FE6ユニットID',
++      'field.fe6Unit.classId': 'FE6兵種ID',
++      'field.fe6Unit.level': 'FE6レベル',
++      'field.fe6Unit.exp': 'FE6経験値',
++      'field.fe7Unit.characterId': 'FE7ユニットID',
++      'field.fe7Unit.classId': 'FE7兵種ID',
++      'field.fe7Unit.level': 'FE7レベル',
++      'field.fe7Unit.exp': 'FE7経験値',
+       'field.unit.currentHp': '現在HP',
+       'field.unit.maxHp': '最大HP',
+       'field.unit.strength': '力',
+       'field.unit.skill': '技',
+       'field.unit.speed': '速さ',
+       'field.unit.defense': '守備',
+       'field.unit.resistance': '魔防',
+       'field.unit.luck': '幸運',
+       'field.unit.constitution': '体格',
+       'field.unit.positionX': '位置X',
+@@ -258,20 +274,28 @@ const resources = {
+       'field.playst.chapterIndex': '章节索引',
+       'field.playst.chapterTurn': '章节回合',
+       'field.playst.chapterStateBits': '章节状态位',
+       'field.playst.playthroughId': '周目 ID',
+       'field.playst.chapterMode': '章节模式',
+       'field.playst.playerName': '主角名称',
+       'field.unit.characterId': '单位角色 ID',
+       'field.unit.classId': '单位职业 ID',
+       'field.unit.level': '等级',
+       'field.unit.exp': '经验值',
++      'field.fe6Unit.characterId': 'FE6 单位角色 ID',
++      'field.fe6Unit.classId': 'FE6 单位职业 ID',
++      'field.fe6Unit.level': 'FE6 等级',
++      'field.fe6Unit.exp': 'FE6 经验值',
++      'field.fe7Unit.characterId': 'FE7 单位角色 ID',
++      'field.fe7Unit.classId': 'FE7 单位职业 ID',
++      'field.fe7Unit.level': 'FE7 等级',
++      'field.fe7Unit.exp': 'FE7 经验值',
+       'field.unit.currentHp': '当前 HP',
+       'field.unit.maxHp': '最大 HP',
+       'field.unit.strength': '力量',
+       'field.unit.skill': '技',
+       'field.unit.speed': '速度',
+       'field.unit.defense': '防御',
+       'field.unit.resistance': '魔防',
+       'field.unit.luck': '幸运',
+       'field.unit.constitution': '体格',
+       'field.unit.positionX': '位置 X',
+diff --git a/src/lib/blockSchema.test.ts b/src/lib/blockSchema.test.ts
+new file mode 100644
+index 0000000..be3d537
+--- /dev/null
++++ b/src/lib/blockSchema.test.ts
+@@ -0,0 +1,22 @@
++import { describe, expect, it } from 'vitest'
++import { buildFe6SaveSchema, buildFe7SaveSchema } from './blockSchema'
++
++describe('blockSchema', () => {
++  it('buildFe6SaveSchema uses FE6-specific unit labels and member paths', () => {
++    const unitFields = buildFe6SaveSchema().filter((field) => field.domain === 'units')
++
++    expect(unitFields.some((field) => field.labelKey === 'field.fe6Unit.level')).toBe(true)
++    expect(unitFields.some((field) => field.memberPath === 'fe6Units[0].level')).toBe(true)
++    expect(unitFields.some((field) => field.labelKey === 'field.unit.level')).toBe(false)
++    expect(unitFields.some((field) => field.memberPath === 'units[0].level')).toBe(false)
++  })
++
++  it('buildFe7SaveSchema uses FE7-specific unit labels and member paths', () => {
++    const unitFields = buildFe7SaveSchema().filter((field) => field.domain === 'units')
++
++    expect(unitFields.some((field) => field.labelKey === 'field.fe7Unit.level')).toBe(true)
++    expect(unitFields.some((field) => field.memberPath === 'fe7Units[0].level')).toBe(true)
++    expect(unitFields.some((field) => field.labelKey === 'field.unit.level')).toBe(false)
++    expect(unitFields.some((field) => field.memberPath === 'units[0].level')).toBe(false)
++  })
++})
+diff --git a/src/lib/blockSchema.ts b/src/lib/blockSchema.ts
+index 1a8f4c7..c6b73ae 100644
+--- a/src/lib/blockSchema.ts
++++ b/src/lib/blockSchema.ts
+@@ -18,20 +18,31 @@ export interface BlockFieldSchema {
+ 
+ type BlockFieldSchemaInput = Omit<BlockFieldSchema, 'byteLength'> & { byteLength?: number }
+ 
+ function makeField(field: BlockFieldSchemaInput): BlockFieldSchema {
+   return {
+     ...field,
+     byteLength: field.byteLength ?? field.size,
+   }
+ }
+ 
++function createTechnicalLabel(memberPath: string): string {
++  return `field.tech.${memberPath.replace(/[.[\]]+/g, '_').replace(/_+$/, '')}`
++}
++
++function makeTechnicalField(field: Omit<BlockFieldSchemaInput, 'labelKey'>): BlockFieldSchema {
++  return makeField({
++    ...field,
++    labelKey: createTechnicalLabel(field.memberPath),
++  })
++}
++
+ export const PLAYST_FIELD_SCHEMA: readonly BlockFieldSchema[] = [
+   makeField({
+     key: 'playst.gold',
+     offset: 0x08,
+     size: 4,
+     type: 'u32',
+     labelKey: 'field.playst.gold',
+     domain: 'playState',
+     groupKey: 'playst',
+     memberPath: 'gold',
+@@ -467,30 +478,169 @@ export function buildFe8ProgressSchema(): readonly BlockFieldSchema[] {
+       size: 1,
+       type: 'u8',
+       labelKey: 'field.progress.arenaFlags',
+       domain: 'progressFlags',
+       groupKey: 'progressFlags.world',
+       memberPath: 'progressFlags.arenaFlags',
+     }),
+   ] as const
+ }
+ 
++type LegacyUnitFieldDefinition = {
++  key: string
++  offset: number
++  labelKey: string
++  memberName: string
++}
++
++function buildLegacyTechnicalUnitFields(
++  unitKeyPrefix: string,
++  memberPrefix: string,
++): readonly BlockFieldSchema[] {
++  const fields: BlockFieldSchema[] = []
++
++  for (let offset = 0x34; offset <= 0x43; offset += 1) {
++    const hexOffset = offset.toString(16)
++    fields.push(
++      makeTechnicalField({
++        key: `${unitKeyPrefix}.0.raw${hexOffset}`,
++        offset,
++        size: 1,
++        type: 'u8',
++        domain: 'units',
++        groupKey: 'units.0',
++        memberPath: `${memberPrefix}[0].raw_${hexOffset}`,
++      }),
++    )
++  }
++
++  fields.push(
++    makeTechnicalField({
++      key: `${unitKeyPrefix}.0.raw44`,
++      offset: 0x44,
++      size: 2,
++      type: 'u16',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: `${memberPrefix}[0].raw_44`,
++    }),
++  )
++
++  return fields
++}
++
++function buildLegacyUnitSchema(
++  unitKeyPrefix: string,
++  memberPrefix: string,
++  fieldDefinitions: readonly LegacyUnitFieldDefinition[],
++): readonly BlockFieldSchema[] {
++  return [
++    ...fieldDefinitions.map((field) =>
++      makeField({
++        key: `${unitKeyPrefix}.0.${field.key}`,
++        offset: field.offset,
++        size: 1,
++        type: 'u8',
++        labelKey: field.labelKey,
++        domain: 'units',
++        groupKey: 'units.0',
++        memberPath: `${memberPrefix}[0].${field.memberName}`,
++      }),
++    ),
++    ...buildLegacyTechnicalUnitFields(unitKeyPrefix, memberPrefix),
++  ] as const
++}
++
++export function buildFe6UnitSchema(): readonly BlockFieldSchema[] {
++  return buildLegacyUnitSchema('fe6Unit', 'fe6Units', [
++    {
++      key: 'characterId',
++      offset: 0x30,
++      labelKey: 'field.fe6Unit.characterId',
++      memberName: 'characterId',
++    },
++    {
++      key: 'classId',
++      offset: 0x31,
++      labelKey: 'field.fe6Unit.classId',
++      memberName: 'classId',
++    },
++    {
++      key: 'level',
++      offset: 0x32,
++      labelKey: 'field.fe6Unit.level',
++      memberName: 'level',
++    },
++    {
++      key: 'exp',
++      offset: 0x33,
++      labelKey: 'field.fe6Unit.exp',
++      memberName: 'exp',
++    },
++  ])
++}
++
++export function buildFe7UnitSchema(): readonly BlockFieldSchema[] {
++  return buildLegacyUnitSchema('fe7Unit', 'fe7Units', [
++    {
++      key: 'characterId',
++      offset: 0x30,
++      labelKey: 'field.fe7Unit.characterId',
++      memberName: 'characterId',
++    },
++    {
++      key: 'classId',
++      offset: 0x31,
++      labelKey: 'field.fe7Unit.classId',
++      memberName: 'classId',
++    },
++    {
++      key: 'level',
++      offset: 0x32,
++      labelKey: 'field.fe7Unit.level',
++      memberName: 'level',
++    },
++    {
++      key: 'exp',
++      offset: 0x33,
++      labelKey: 'field.fe7Unit.exp',
++      memberName: 'exp',
++    },
++  ])
++}
++
++export function buildFe6SaveSchema(): readonly BlockFieldSchema[] {
++  return [...PLAYST_FIELD_SCHEMA, ...buildFe6UnitSchema()]
++}
++
++export function buildFe7SaveSchema(): readonly BlockFieldSchema[] {
++  return [...PLAYST_FIELD_SCHEMA, ...buildFe7UnitSchema()]
++}
++
+ const EMPTY_BLOCK_SCHEMA: readonly BlockFieldSchema[] = []
+ const FE8_BLOCK_SCHEMA: readonly BlockFieldSchema[] = [
+   ...PLAYST_FIELD_SCHEMA,
+   ...buildFe8UnitSchema(),
+   ...buildFe8InventorySchema(),
+   ...buildFe8ProgressSchema(),
+ ]
++const FE6_BLOCK_SCHEMA: readonly BlockFieldSchema[] = buildFe6SaveSchema()
++const FE7_BLOCK_SCHEMA: readonly BlockFieldSchema[] = buildFe7SaveSchema()
+ const BLOCK_SCHEMA_BY_GAME: Readonly<Record<GameCode, Readonly<Partial<Record<number, readonly BlockFieldSchema[]>>>>> = {
+-  FE6: {},
+-  FE7: {},
++  FE6: {
++    0: FE6_BLOCK_SCHEMA,
++    1: FE6_BLOCK_SCHEMA,
++  },
++  FE7: {
++    0: FE7_BLOCK_SCHEMA,
++    1: FE7_BLOCK_SCHEMA,
++  },
+   FE8: {
+     0: FE8_BLOCK_SCHEMA,
+     1: FE8_BLOCK_SCHEMA,
+   },
+   UNKNOWN: {},
+ }
+ 
+ export function getBlockSchema(gameCode: GameCode, blockKind: number): readonly BlockFieldSchema[] {
+   return BLOCK_SCHEMA_BY_GAME[gameCode][blockKind] ?? EMPTY_BLOCK_SCHEMA
+ }
+diff --git a/src/lib/structuredEditor.test.ts b/src/lib/structuredEditor.test.ts
+index 72ae1dc..e983631 100644
+--- a/src/lib/structuredEditor.test.ts
++++ b/src/lib/structuredEditor.test.ts
+@@ -138,35 +138,61 @@ describe('structuredEditor', () => {
+     expect(suspendRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(true)
+     expect(suspendRows.some((row) => row.domain === 'units')).toBe(true)
+     expect(suspendRows.some((row) => row.domain === 'inventory')).toBe(true)
+     expect(suspendRows.some((row) => row.domain === 'progressFlags')).toBe(true)
+ 
+     expect(archiveRows.length).toBe(parsed.blocks[6].size / GENERIC_ROW_CHUNK_SIZE)
+     expect(archiveRows.every((row) => row.type === 'bytes')).toBe(true)
+     expect(archiveRows.every((row) => row.size === GENERIC_ROW_CHUNK_SIZE)).toBe(true)
+   })
+ 
+-  it('falls back to generic rows for FE6, FE7, and UNKNOWN save blocks', async () => {
+-    for (const gameCode of ['FE6', 'FE7', 'UNKNOWN'] as const) {
++  it('FE6 and FE7 structured rows are not byte-chunk-only', async () => {
++    for (const [gameCode, levelLabelKey, levelMemberPath, technicalLabelKey] of [
++      ['FE6', 'field.fe6Unit.level', 'fe6Units[0].level', 'field.tech.fe6Units_0_raw_34'],
++      ['FE7', 'field.fe7Unit.level', 'fe7Units[0].level', 'field.tech.fe7Units_0_raw_34'],
++    ] as const) {
+       const parsed = await parseSaveFile(buildSampleSave(gameCode))
+-      const saveRows = getStructuredRows(parsed, 0)
+-
+-      expect(parsed.gameCode).toBe(gameCode)
+-      expect(saveRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(false)
+-      expect(saveRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(false)
+-      expect(saveRows.length).toBe(parsed.blocks[0].size / GENERIC_ROW_CHUNK_SIZE)
+-      expect(saveRows.every((row) => row.type === 'bytes')).toBe(true)
+-      expect(saveRows.every((row) => row.size === GENERIC_ROW_CHUNK_SIZE)).toBe(true)
+-      expect(saveRows.some((row) => row.labelKey === 'field.unknown.bytes')).toBe(true)
++
++      for (const blockIndex of [0, 1] as const) {
++        const rows = getStructuredRows(parsed, blockIndex)
++
++        expect(parsed.gameCode).toBe(gameCode)
++        expect(rows.some((row) => row.domain === 'units')).toBe(true)
++        expect(rows.some((row) => row.type !== 'bytes')).toBe(true)
++        expect(rows.some((row) => row.labelKey === levelLabelKey)).toBe(true)
++        expect(rows.some((row) => row.memberPath === levelMemberPath)).toBe(true)
++        expect(rows.some((row) => row.labelKey === 'field.unit.level')).toBe(false)
++        expect(rows.some((row) => row.memberPath === 'units[0].level')).toBe(false)
++        expect(rows.some((row) => row.labelKey === technicalLabelKey)).toBe(true)
++      }
+     }
+   })
+ 
++  it('unnamed FE6/FE7 members use deterministic technical labels', async () => {
++    const parsed = await parseSaveFile(buildSampleSave('FE6'))
++    const technicalRow = getStructuredRows(parsed, 0).find((row) => row.memberPath === 'fe6Units[0].raw_34')
++
++    expect(technicalRow?.labelKey).toBe('field.tech.fe6Units_0_raw_34')
++    expect(technicalRow?.memberPath).toBe('fe6Units[0].raw_34')
++  })
++
++  it('unknown save blocks still fall back to generic rows', async () => {
++    const parsed = await parseSaveFile(buildSampleSave('UNKNOWN'))
++    const saveRows = getStructuredRows(parsed, 0)
++
++    expect(saveRows.length).toBe(parsed.blocks[0].size / GENERIC_ROW_CHUNK_SIZE)
++    expect(saveRows.every((row) => row.type === 'bytes')).toBe(true)
++    expect(saveRows.every((row) => row.size === GENERIC_ROW_CHUNK_SIZE)).toBe(true)
++    expect(saveRows.some((row) => row.labelKey === 'field.unknown.bytes')).toBe(true)
++    expect(saveRows.some((row) => row.domain === 'units')).toBe(false)
++  })
++
+   it('applies structured edits to known and generic rows while preserving valid checksums', async () => {
+     const parsed = await parseSaveFile(buildSampleSave())
+     const saveRows = getStructuredRows(parsed, 0)
+     const goldRow = saveRows.find((row) => row.labelKey === 'field.playst.gold')
+     const nameRow = saveRows.find((row) => row.labelKey === 'field.playst.playerName')
+     const unitLevelRow = saveRows.find((row) => row.memberPath === 'units[0].level')
+     const genericRow = getStructuredRows(parsed, 6).find((row) => row.offset === 0x10)
+ 
+     expect(goldRow).toBeDefined()
+     expect(nameRow).toBeDefined()
+diff --git a/src/lib/structuredEditor.ts b/src/lib/structuredEditor.ts
+index 6e546a0..e29059c 100644
+--- a/src/lib/structuredEditor.ts
++++ b/src/lib/structuredEditor.ts
+@@ -70,26 +70,41 @@ function readValue(bytes: Uint8Array, field: BlockFieldSchema): number | string
+       return readU16(bytes, field.offset)
+     case 'u32':
+       return readU32(bytes, field.offset)
+     case 'text':
+       return readFixedString(bytes, field.offset, field.byteLength)
+     case 'bytes':
+       return toHexString(bytes.slice(field.offset, field.offset + field.byteLength))
+   }
+ }
+ 
++function resolveUnitIndex(field: BlockFieldSchema): number | undefined {
++  if (field.domain !== 'units') {
++    return undefined
++  }
++
++  const groupMatch = /^units\.(\d+)$/.exec(field.groupKey)
++  if (groupMatch) {
++    return Number(groupMatch[1])
++  }
++
++  const memberMatch = /^units\[(\d+)\]/.exec(field.memberPath)
++  return memberMatch ? Number(memberMatch[1]) : undefined
++}
++
+ function buildKnownRows(bytes: Uint8Array, fields: readonly BlockFieldSchema[]): ResolvedFieldRow[] {
+   return fields.map((field) => ({
+     key: field.key,
+     domain: field.domain,
+     groupKey: field.groupKey,
+     memberPath: field.memberPath,
++    unitIndex: resolveUnitIndex(field),
+     offset: field.offset,
+     size: field.byteLength,
+     byteLength: field.byteLength,
+     type: field.type,
+     labelKey: field.labelKey,
+     value: readValue(bytes, field),
+   }))
+ }
+ 
+ function buildGenericRows(bytes: Uint8Array, coveredOffsets: Set<number>): ResolvedFieldRow[] {

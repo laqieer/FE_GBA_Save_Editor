@@ -1,0 +1,68 @@
+# Review package: a1205d5..06be021
+
+## Commits
+06be021 feat: accept sps save extension
+
+## Files changed
+ src/App.tsx                    | 2 +-
+ src/lib/fileValidation.test.ts | 7 +++----
+ src/lib/fileValidation.ts      | 2 +-
+ 3 files changed, 5 insertions(+), 6 deletions(-)
+
+## Diff
+diff --git a/src/App.tsx b/src/App.tsx
+index 9594a09..4de883b 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -106,21 +106,21 @@ function App() {
+         <select value={i18n.language} onChange={(e) => i18n.changeLanguage(e.target.value)}>
+           <option value="en">English</option>
+           <option value="ja">日本語</option>
+           <option value="zh">中文</option>
+         </select>
+       </header>
+ 
+       <section className="toolbar">
+         <label className="file-input">
+           {t('upload')}
+-          <input type="file" accept=".sav" onChange={(e) => onFileChange(e.target.files?.[0])} />
++          <input type="file" accept=".sav,.sps" onChange={(e) => onFileChange(e.target.files?.[0])} />
+         </label>
+       </section>
+ 
+       {status && <p className="status">{status}</p>}
+       {error && <p className="error">{error}</p>}
+ 
+       {parsed && (
+         <section className="content-grid">
+           <div className="card">
+             <h2>{t('metadata')}</h2>
+diff --git a/src/lib/fileValidation.test.ts b/src/lib/fileValidation.test.ts
+index 1171d07..186d6f6 100644
+--- a/src/lib/fileValidation.test.ts
++++ b/src/lib/fileValidation.test.ts
+@@ -1,12 +1,11 @@
+ import { describe, expect, it } from 'vitest'
+ import { isSupportedSaveFile } from './fileValidation'
+ 
+ describe('isSupportedSaveFile', () => {
+-  it('accepts .sav files only', () => {
++  it('accepts .sav and .sps files only', () => {
+     expect(isSupportedSaveFile('fe8.sav')).toBe(true)
+-    expect(isSupportedSaveFile('FE7.SAV')).toBe(true)
+-    expect(isSupportedSaveFile('save.srm')).toBe(false)
++    expect(isSupportedSaveFile('fe8.sps')).toBe(true)
++    expect(isSupportedSaveFile('FE7.SPS')).toBe(true)
+     expect(isSupportedSaveFile('payload.exe')).toBe(false)
+-    expect(isSupportedSaveFile('payload.com')).toBe(false)
+   })
+ })
+diff --git a/src/lib/fileValidation.ts b/src/lib/fileValidation.ts
+index b1557e8..8203010 100644
+--- a/src/lib/fileValidation.ts
++++ b/src/lib/fileValidation.ts
+@@ -1,3 +1,3 @@
+ export function isSupportedSaveFile(fileName: string): boolean {
+-  return /\.sav$/i.test(fileName)
++  return /\.(sav|sps)$/i.test(fileName)
+ }

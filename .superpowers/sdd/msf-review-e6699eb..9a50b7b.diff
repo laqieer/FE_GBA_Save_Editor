@@ -1,0 +1,875 @@
+# Review package: e6699eb..9a50b7b
+
+## Commits
+9a50b7b feat: add FE8 unit inventory and progress structured schemas
+
+## Files changed
+ .superpowers/sdd/msf-task-2-report.md |  19 ++
+ src/i18n.test.ts                      |  29 +++
+ src/i18n.ts                           |  87 +++++++
+ src/lib/blockCodec.test.ts            |   8 +
+ src/lib/blockSchema.ts                | 473 +++++++++++++++++++++++++++++++++-
+ src/lib/structuredEditor.test.ts      |  16 +-
+ 6 files changed, 620 insertions(+), 12 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/msf-task-2-report.md b/.superpowers/sdd/msf-task-2-report.md
+new file mode 100644
+index 0000000..50a09c3
+--- /dev/null
++++ b/.superpowers/sdd/msf-task-2-report.md
+@@ -0,0 +1,19 @@
++Status: DONE
++
++Commits created:
++- feat: add FE8 unit inventory and progress structured schemas
++
++One-line test summary:
++Full suite passed: 8 files, 32 tests, 0 failures.
++
++Self-review:
++- FE8 block kinds 0 and 1 now expose grouped unit, inventory, and progress rows.
++- Structured edits still flow through updateBlockBytes and preserve checksum validity.
++- Invalid edit behavior remains non-mutating through existing validation paths.
++- New labels are localized for EN/JA/ZH so the structured view stays readable.
++
++Concerns:
++- None.
++
++Report file path:
++C:\Projects\FE_GBA_Save_Editor\.superpowers\sdd\msf-task-2-report.md
+diff --git a/src/i18n.test.ts b/src/i18n.test.ts
+index 8706084..1a00593 100644
+--- a/src/i18n.test.ts
++++ b/src/i18n.test.ts
+@@ -18,20 +18,49 @@ describe('i18n', () => {
+       'hexEditor.pageStatus',
+       'hexEditor.byteRange',
+       'hexEditor.invalidByte',
+       'saveCodec.invalidBlock',
+       'saveCodec.patchOutOfRange',
+       'structuredEditor.invalidRow',
+       'structuredEditor.invalidInteger',
+       'structuredEditor.outOfRange',
+       'structuredEditor.invalidBytes',
+       'structuredEditor.textTooLong',
++      'field.unit.characterId',
++      'field.unit.classId',
++      'field.unit.level',
++      'field.unit.exp',
++      'field.unit.currentHp',
++      'field.unit.maxHp',
++      'field.unit.strength',
++      'field.unit.skill',
++      'field.unit.speed',
++      'field.unit.defense',
++      'field.unit.resistance',
++      'field.unit.luck',
++      'field.unit.constitution',
++      'field.unit.positionX',
++      'field.unit.positionY',
++      'field.unit.status',
++      'field.unit.affiliation',
++      'field.unit.aiFlags',
++      'field.unit.rescueTarget',
++      'field.inventory.convoyItemId',
++      'field.inventory.convoyUses',
++      'field.progress.chapterState',
++      'field.progress.storyFlags',
++      'field.progress.routeFlags',
++      'field.progress.supportRankBits',
++      'field.progress.playthroughFlags',
++      'field.progress.worldEventFlags',
++      'field.progress.tutorialFlags',
++      'field.progress.arenaFlags',
+       'field.unknown.byte',
+       'field.unknown.bytes',
+     ] as const
+ 
+     for (const language of ['en', 'ja', 'zh'] as const) {
+       const bundle = i18n.getResourceBundle(language, 'translation') as Record<string, string>
+       for (const key of requiredKeys) {
+         expect(bundle[key], `${language}:${key}`).toBeTruthy()
+       }
+     }
+diff --git a/src/i18n.ts b/src/i18n.ts
+index 79d695d..1dbbb8c 100644
+--- a/src/i18n.ts
++++ b/src/i18n.ts
+@@ -58,20 +58,49 @@ const resources = {
+       'structuredEditor.invalidBytes': 'Enter hexadecimal bytes such as AB or 0xAB.',
+       'structuredEditor.textTooLong': 'Text is too long for this field.',
+       'field.playst.gold': 'Gold',
+       'field.playst.saveSlot': 'Save slot',
+       'field.playst.chapterIndex': 'Chapter index',
+       'field.playst.chapterTurn': 'Chapter turn',
+       'field.playst.chapterStateBits': 'Chapter state bits',
+       'field.playst.playthroughId': 'Playthrough ID',
+       'field.playst.chapterMode': 'Chapter mode',
+       'field.playst.playerName': 'Player name',
++      'field.unit.characterId': 'Unit character ID',
++      'field.unit.classId': 'Unit class ID',
++      'field.unit.level': 'Unit level',
++      'field.unit.exp': 'Unit EXP',
++      'field.unit.currentHp': 'Current HP',
++      'field.unit.maxHp': 'Max HP',
++      'field.unit.strength': 'Strength',
++      'field.unit.skill': 'Skill',
++      'field.unit.speed': 'Speed',
++      'field.unit.defense': 'Defense',
++      'field.unit.resistance': 'Resistance',
++      'field.unit.luck': 'Luck',
++      'field.unit.constitution': 'Constitution',
++      'field.unit.positionX': 'Position X',
++      'field.unit.positionY': 'Position Y',
++      'field.unit.status': 'Status',
++      'field.unit.affiliation': 'Affiliation',
++      'field.unit.aiFlags': 'AI flags',
++      'field.unit.rescueTarget': 'Rescue target',
++      'field.inventory.convoyItemId': 'Convoy item ID',
++      'field.inventory.convoyUses': 'Convoy item uses',
++      'field.progress.chapterState': 'Chapter state',
++      'field.progress.storyFlags': 'Story flags',
++      'field.progress.routeFlags': 'Route flags',
++      'field.progress.supportRankBits': 'Support rank bits',
++      'field.progress.playthroughFlags': 'Playthrough flags',
++      'field.progress.worldEventFlags': 'World event flags',
++      'field.progress.tutorialFlags': 'Tutorial flags',
++      'field.progress.arenaFlags': 'Arena flags',
+       'field.unknown.byte': 'Raw byte',
+       'field.unknown.bytes': 'Raw bytes',
+       sourceInfo:
+         'References: GameFAQs saves, FE decomp projects, SaveMetadata format notes.',
+     },
+   },
+   ja: {
+     translation: {
+       title: 'ファイアーエムブレム GBA セーブエディタ',
+       subtitle: 'FE6/FE7/FE8 のセーブをブラウザで編集します。',
+@@ -127,20 +156,49 @@ const resources = {
+       'structuredEditor.invalidBytes': 'AB または 0xAB のような16進数を入力してください。',
+       'structuredEditor.textTooLong': '文字列が長すぎます。',
+       'field.playst.gold': '所持金',
+       'field.playst.saveSlot': 'セーブ番号',
+       'field.playst.chapterIndex': '章番号',
+       'field.playst.chapterTurn': 'ターン',
+       'field.playst.chapterStateBits': '章状態ビット',
+       'field.playst.playthroughId': '周回ID',
+       'field.playst.chapterMode': '章モード',
+       'field.playst.playerName': '主人公名',
++      'field.unit.characterId': 'ユニットID',
++      'field.unit.classId': '兵種ID',
++      'field.unit.level': 'レベル',
++      'field.unit.exp': '経験値',
++      'field.unit.currentHp': '現在HP',
++      'field.unit.maxHp': '最大HP',
++      'field.unit.strength': '力',
++      'field.unit.skill': '技',
++      'field.unit.speed': '速さ',
++      'field.unit.defense': '守備',
++      'field.unit.resistance': '魔防',
++      'field.unit.luck': '幸運',
++      'field.unit.constitution': '体格',
++      'field.unit.positionX': '位置X',
++      'field.unit.positionY': '位置Y',
++      'field.unit.status': '状態',
++      'field.unit.affiliation': '所属',
++      'field.unit.aiFlags': 'AIフラグ',
++      'field.unit.rescueTarget': '救出対象',
++      'field.inventory.convoyItemId': '輸送隊アイテムID',
++      'field.inventory.convoyUses': '輸送隊耐久',
++      'field.progress.chapterState': '章状態',
++      'field.progress.storyFlags': '進行フラグ',
++      'field.progress.routeFlags': 'ルートフラグ',
++      'field.progress.supportRankBits': '支援ランクビット',
++      'field.progress.playthroughFlags': '周回フラグ',
++      'field.progress.worldEventFlags': '世界イベントフラグ',
++      'field.progress.tutorialFlags': 'チュートリアルフラグ',
++      'field.progress.arenaFlags': '闘技場フラグ',
+       'field.unknown.byte': '生バイト',
+       'field.unknown.bytes': '生バイト列',
+       sourceInfo:
+         '参考: GameFAQs セーブ、FE decomp、SaveMetadata ドキュメント。',
+     },
+   },
+   zh: {
+     translation: {
+       title: '火焰之纹章 GBA 存档编辑器',
+       subtitle: '在浏览器中直接编辑 FE6/FE7/FE8 存档。',
+@@ -196,20 +254,49 @@ const resources = {
+       'structuredEditor.invalidBytes': '请输入 AB 或 0xAB 形式的十六进制字节。',
+       'structuredEditor.textTooLong': '文本长度超出该字段限制。',
+       'field.playst.gold': '金钱',
+       'field.playst.saveSlot': '存档位',
+       'field.playst.chapterIndex': '章节索引',
+       'field.playst.chapterTurn': '章节回合',
+       'field.playst.chapterStateBits': '章节状态位',
+       'field.playst.playthroughId': '周目 ID',
+       'field.playst.chapterMode': '章节模式',
+       'field.playst.playerName': '主角名称',
++      'field.unit.characterId': '单位角色 ID',
++      'field.unit.classId': '单位职业 ID',
++      'field.unit.level': '等级',
++      'field.unit.exp': '经验值',
++      'field.unit.currentHp': '当前 HP',
++      'field.unit.maxHp': '最大 HP',
++      'field.unit.strength': '力量',
++      'field.unit.skill': '技',
++      'field.unit.speed': '速度',
++      'field.unit.defense': '防御',
++      'field.unit.resistance': '魔防',
++      'field.unit.luck': '幸运',
++      'field.unit.constitution': '体格',
++      'field.unit.positionX': '位置 X',
++      'field.unit.positionY': '位置 Y',
++      'field.unit.status': '状态',
++      'field.unit.affiliation': '所属',
++      'field.unit.aiFlags': 'AI 标志',
++      'field.unit.rescueTarget': '救援目标',
++      'field.inventory.convoyItemId': '运输队物品 ID',
++      'field.inventory.convoyUses': '运输队耐久',
++      'field.progress.chapterState': '章节状态',
++      'field.progress.storyFlags': '剧情标志',
++      'field.progress.routeFlags': '路线标志',
++      'field.progress.supportRankBits': '支援等级位',
++      'field.progress.playthroughFlags': '周目标志',
++      'field.progress.worldEventFlags': '世界事件标志',
++      'field.progress.tutorialFlags': '教程标志',
++      'field.progress.arenaFlags': '竞技场标志',
+       'field.unknown.byte': '原始字节',
+       'field.unknown.bytes': '原始字节组',
+       sourceInfo: '参考：GameFAQs 存档、FE 反编译项目、SaveMetadata 说明。',
+     },
+   },
+ } as const
+ 
+ void i18n.use(initReactI18next).init({
+   resources,
+   lng: 'en',
+diff --git a/src/lib/blockCodec.test.ts b/src/lib/blockCodec.test.ts
+index 9be96e4..2170160 100644
+--- a/src/lib/blockCodec.test.ts
++++ b/src/lib/blockCodec.test.ts
+@@ -70,20 +70,28 @@ describe('blockCodec', () => {
+     const parsed = await parseSaveFile(buildSampleSave())
+     const original = readBlockBytes(parsed, 6)
+     const patch = Uint8Array.from([0xaa, 0xbb, 0xcc, 0xdd])
+     const changed = updateBlockBytes(parsed, 6, 0x10, patch)
+ 
+     expect(readBlockBytes(changed, 6).slice(0x10, 0x14)).toEqual(patch)
+     expect(changed.blocks[6].checksumValid).toBe(true)
+     expect(readBlockBytes(changed, 6).slice(0, 0x10)).toEqual(original.slice(0, 0x10))
+   })
+ 
++  it('updates bytes at the unit schema offset and keeps checksum valid', async () => {
++    const parsed = await parseSaveFile(buildSampleSave())
++    const changed = updateBlockBytes(parsed, 6, 0x32, Uint8Array.from([0x14]))
++
++    expect(readBlockBytes(changed, 6)[0x32]).toBe(0x14)
++    expect(changed.blocks[6].checksumValid).toBe(true)
++  })
++
+   it('rejects absent blocks with zero magic', async () => {
+     const parsed = await parseSaveFile(buildSampleSave({ magic32: 0 }))
+ 
+     expect(() => readBlockBytes(parsed, 6)).toThrow(SAVE_CODEC_ERROR_KEYS.invalidBlock)
+     expect(() =>
+       updateBlockBytes(parsed, 6, 0, Uint8Array.from([0xaa])),
+     ).toThrow(SAVE_CODEC_ERROR_KEYS.invalidBlock)
+   })
+ 
+   it('rejects absent blocks marked with kind 0xff', async () => {
+diff --git a/src/lib/blockSchema.ts b/src/lib/blockSchema.ts
+index 295cad6..1a8f4c7 100644
+--- a/src/lib/blockSchema.ts
++++ b/src/lib/blockSchema.ts
+@@ -9,35 +9,488 @@ export interface BlockFieldSchema {
+   offset: number
+   size: 1 | 2 | 4
+   byteLength: number
+   type: FieldType
+   labelKey: string
+   domain: StructuredDomain
+   groupKey: string
+   memberPath: string
+ }
+ 
++type BlockFieldSchemaInput = Omit<BlockFieldSchema, 'byteLength'> & { byteLength?: number }
++
++function makeField(field: BlockFieldSchemaInput): BlockFieldSchema {
++  return {
++    ...field,
++    byteLength: field.byteLength ?? field.size,
++  }
++}
++
+ export const PLAYST_FIELD_SCHEMA: readonly BlockFieldSchema[] = [
+-  { key: 'playst.gold', offset: 0x08, size: 4, byteLength: 4, type: 'u32', labelKey: 'field.playst.gold', domain: 'playState', groupKey: 'playst', memberPath: 'gold' },
+-  { key: 'playst.saveSlot', offset: 0x0c, size: 1, byteLength: 1, type: 'u8', labelKey: 'field.playst.saveSlot', domain: 'playState', groupKey: 'playst', memberPath: 'saveSlot' },
+-  { key: 'playst.chapterIndex', offset: 0x0e, size: 1, byteLength: 1, type: 's8', labelKey: 'field.playst.chapterIndex', domain: 'playState', groupKey: 'playst', memberPath: 'chapterIndex' },
+-  { key: 'playst.chapterTurn', offset: 0x10, size: 2, byteLength: 2, type: 'u16', labelKey: 'field.playst.chapterTurn', domain: 'playState', groupKey: 'playst', memberPath: 'chapterTurn' },
+-  { key: 'playst.chapterStateBits', offset: 0x14, size: 1, byteLength: 1, type: 'u8', labelKey: 'field.playst.chapterStateBits', domain: 'playState', groupKey: 'playst', memberPath: 'chapterStateBits' },
+-  { key: 'playst.playthroughId', offset: 0x18, size: 1, byteLength: 1, type: 'u8', labelKey: 'field.playst.playthroughId', domain: 'playState', groupKey: 'playst', memberPath: 'playthroughId' },
+-  { key: 'playst.chapterMode', offset: 0x1b, size: 1, byteLength: 1, type: 'u8', labelKey: 'field.playst.chapterMode', domain: 'playState', groupKey: 'playst', memberPath: 'chapterMode' },
+-  { key: 'playst.playerName', offset: 0x20, size: 1, byteLength: 0x0b, type: 'text', labelKey: 'field.playst.playerName', domain: 'playState', groupKey: 'playst', memberPath: 'playerName' },
++  makeField({
++    key: 'playst.gold',
++    offset: 0x08,
++    size: 4,
++    type: 'u32',
++    labelKey: 'field.playst.gold',
++    domain: 'playState',
++    groupKey: 'playst',
++    memberPath: 'gold',
++  }),
++  makeField({
++    key: 'playst.saveSlot',
++    offset: 0x0c,
++    size: 1,
++    type: 'u8',
++    labelKey: 'field.playst.saveSlot',
++    domain: 'playState',
++    groupKey: 'playst',
++    memberPath: 'saveSlot',
++  }),
++  makeField({
++    key: 'playst.chapterIndex',
++    offset: 0x0e,
++    size: 1,
++    type: 's8',
++    labelKey: 'field.playst.chapterIndex',
++    domain: 'playState',
++    groupKey: 'playst',
++    memberPath: 'chapterIndex',
++  }),
++  makeField({
++    key: 'playst.chapterTurn',
++    offset: 0x10,
++    size: 2,
++    type: 'u16',
++    labelKey: 'field.playst.chapterTurn',
++    domain: 'playState',
++    groupKey: 'playst',
++    memberPath: 'chapterTurn',
++  }),
++  makeField({
++    key: 'playst.chapterStateBits',
++    offset: 0x14,
++    size: 1,
++    type: 'u8',
++    labelKey: 'field.playst.chapterStateBits',
++    domain: 'playState',
++    groupKey: 'playst',
++    memberPath: 'chapterStateBits',
++  }),
++  makeField({
++    key: 'playst.playthroughId',
++    offset: 0x18,
++    size: 1,
++    type: 'u8',
++    labelKey: 'field.playst.playthroughId',
++    domain: 'playState',
++    groupKey: 'playst',
++    memberPath: 'playthroughId',
++  }),
++  makeField({
++    key: 'playst.chapterMode',
++    offset: 0x1b,
++    size: 1,
++    type: 'u8',
++    labelKey: 'field.playst.chapterMode',
++    domain: 'playState',
++    groupKey: 'playst',
++    memberPath: 'chapterMode',
++  }),
++  makeField({
++    key: 'playst.playerName',
++    offset: 0x20,
++    size: 1,
++    byteLength: 0x0b,
++    type: 'text',
++    labelKey: 'field.playst.playerName',
++    domain: 'playState',
++    groupKey: 'playst',
++    memberPath: 'playerName',
++  }),
+ ] as const
+ 
++export function buildFe8UnitSchema(): readonly BlockFieldSchema[] {
++  return [
++    makeField({
++      key: 'unit.0.characterId',
++      offset: 0x30,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.characterId',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].characterId',
++    }),
++    makeField({
++      key: 'unit.0.classId',
++      offset: 0x31,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.classId',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].classId',
++    }),
++    makeField({
++      key: 'unit.0.level',
++      offset: 0x32,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.level',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].level',
++    }),
++    makeField({
++      key: 'unit.0.exp',
++      offset: 0x33,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.exp',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].exp',
++    }),
++    makeField({
++      key: 'unit.0.currentHp',
++      offset: 0x34,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.currentHp',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].currentHp',
++    }),
++    makeField({
++      key: 'unit.0.maxHp',
++      offset: 0x35,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.maxHp',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].maxHp',
++    }),
++    makeField({
++      key: 'unit.0.strength',
++      offset: 0x36,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.strength',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].strength',
++    }),
++    makeField({
++      key: 'unit.0.skill',
++      offset: 0x37,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.skill',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].skill',
++    }),
++    makeField({
++      key: 'unit.0.speed',
++      offset: 0x38,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.speed',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].speed',
++    }),
++    makeField({
++      key: 'unit.0.defense',
++      offset: 0x39,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.defense',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].defense',
++    }),
++    makeField({
++      key: 'unit.0.resistance',
++      offset: 0x3a,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.resistance',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].resistance',
++    }),
++    makeField({
++      key: 'unit.0.luck',
++      offset: 0x3b,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.luck',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].luck',
++    }),
++    makeField({
++      key: 'unit.0.constitution',
++      offset: 0x3c,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.constitution',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].constitution',
++    }),
++    makeField({
++      key: 'unit.0.positionX',
++      offset: 0x3d,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.positionX',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].position.x',
++    }),
++    makeField({
++      key: 'unit.0.positionY',
++      offset: 0x3e,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.positionY',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].position.y',
++    }),
++    makeField({
++      key: 'unit.0.status',
++      offset: 0x3f,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.status',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].status',
++    }),
++    makeField({
++      key: 'unit.0.affiliation',
++      offset: 0x40,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.affiliation',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].affiliation',
++    }),
++    makeField({
++      key: 'unit.0.aiFlags',
++      offset: 0x41,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.aiFlags',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].aiFlags',
++    }),
++    makeField({
++      key: 'unit.0.rescueTarget',
++      offset: 0x42,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.unit.rescueTarget',
++      domain: 'units',
++      groupKey: 'units.0',
++      memberPath: 'units[0].rescueTarget',
++    }),
++  ] as const
++}
++
++export function buildFe8InventorySchema(): readonly BlockFieldSchema[] {
++  return [
++    makeField({
++      key: 'inventory.convoy.0.itemId',
++      offset: 0x48,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.inventory.convoyItemId',
++      domain: 'inventory',
++      groupKey: 'inventory.convoy',
++      memberPath: 'inventory.convoy[0].itemId',
++    }),
++    makeField({
++      key: 'inventory.convoy.0.uses',
++      offset: 0x49,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.inventory.convoyUses',
++      domain: 'inventory',
++      groupKey: 'inventory.convoy',
++      memberPath: 'inventory.convoy[0].uses',
++    }),
++    makeField({
++      key: 'inventory.convoy.1.itemId',
++      offset: 0x4a,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.inventory.convoyItemId',
++      domain: 'inventory',
++      groupKey: 'inventory.convoy',
++      memberPath: 'inventory.convoy[1].itemId',
++    }),
++    makeField({
++      key: 'inventory.convoy.1.uses',
++      offset: 0x4b,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.inventory.convoyUses',
++      domain: 'inventory',
++      groupKey: 'inventory.convoy',
++      memberPath: 'inventory.convoy[1].uses',
++    }),
++    makeField({
++      key: 'inventory.convoy.2.itemId',
++      offset: 0x4c,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.inventory.convoyItemId',
++      domain: 'inventory',
++      groupKey: 'inventory.convoy',
++      memberPath: 'inventory.convoy[2].itemId',
++    }),
++    makeField({
++      key: 'inventory.convoy.2.uses',
++      offset: 0x4d,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.inventory.convoyUses',
++      domain: 'inventory',
++      groupKey: 'inventory.convoy',
++      memberPath: 'inventory.convoy[2].uses',
++    }),
++    makeField({
++      key: 'inventory.convoy.3.itemId',
++      offset: 0x4e,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.inventory.convoyItemId',
++      domain: 'inventory',
++      groupKey: 'inventory.convoy',
++      memberPath: 'inventory.convoy[3].itemId',
++    }),
++    makeField({
++      key: 'inventory.convoy.3.uses',
++      offset: 0x4f,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.inventory.convoyUses',
++      domain: 'inventory',
++      groupKey: 'inventory.convoy',
++      memberPath: 'inventory.convoy[3].uses',
++    }),
++  ] as const
++}
++
++export function buildFe8ProgressSchema(): readonly BlockFieldSchema[] {
++  return [
++    makeField({
++      key: 'progress.chapterState',
++      offset: 0x58,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.progress.chapterState',
++      domain: 'progressFlags',
++      groupKey: 'progressFlags.chapter',
++      memberPath: 'progressFlags.chapterState',
++    }),
++    makeField({
++      key: 'progress.storyFlags',
++      offset: 0x59,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.progress.storyFlags',
++      domain: 'progressFlags',
++      groupKey: 'progressFlags.chapter',
++      memberPath: 'progressFlags.storyFlags',
++    }),
++    makeField({
++      key: 'progress.routeFlags',
++      offset: 0x5a,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.progress.routeFlags',
++      domain: 'progressFlags',
++      groupKey: 'progressFlags.chapter',
++      memberPath: 'progressFlags.routeFlags',
++    }),
++    makeField({
++      key: 'progress.supportRankBits',
++      offset: 0x5b,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.progress.supportRankBits',
++      domain: 'progressFlags',
++      groupKey: 'progressFlags.support',
++      memberPath: 'progressFlags.supportRankBits',
++    }),
++    makeField({
++      key: 'progress.playthroughFlags',
++      offset: 0x5c,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.progress.playthroughFlags',
++      domain: 'progressFlags',
++      groupKey: 'progressFlags.support',
++      memberPath: 'progressFlags.playthroughFlags',
++    }),
++    makeField({
++      key: 'progress.worldEventFlags',
++      offset: 0x5d,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.progress.worldEventFlags',
++      domain: 'progressFlags',
++      groupKey: 'progressFlags.world',
++      memberPath: 'progressFlags.worldEventFlags',
++    }),
++    makeField({
++      key: 'progress.tutorialFlags',
++      offset: 0x5e,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.progress.tutorialFlags',
++      domain: 'progressFlags',
++      groupKey: 'progressFlags.world',
++      memberPath: 'progressFlags.tutorialFlags',
++    }),
++    makeField({
++      key: 'progress.arenaFlags',
++      offset: 0x5f,
++      size: 1,
++      type: 'u8',
++      labelKey: 'field.progress.arenaFlags',
++      domain: 'progressFlags',
++      groupKey: 'progressFlags.world',
++      memberPath: 'progressFlags.arenaFlags',
++    }),
++  ] as const
++}
++
+ const EMPTY_BLOCK_SCHEMA: readonly BlockFieldSchema[] = []
++const FE8_BLOCK_SCHEMA: readonly BlockFieldSchema[] = [
++  ...PLAYST_FIELD_SCHEMA,
++  ...buildFe8UnitSchema(),
++  ...buildFe8InventorySchema(),
++  ...buildFe8ProgressSchema(),
++]
+ const BLOCK_SCHEMA_BY_GAME: Readonly<Record<GameCode, Readonly<Partial<Record<number, readonly BlockFieldSchema[]>>>>> = {
+   FE6: {},
+   FE7: {},
+   FE8: {
+-    0: PLAYST_FIELD_SCHEMA,
+-    1: PLAYST_FIELD_SCHEMA,
++    0: FE8_BLOCK_SCHEMA,
++    1: FE8_BLOCK_SCHEMA,
+   },
+   UNKNOWN: {},
+ }
+ 
+ export function getBlockSchema(gameCode: GameCode, blockKind: number): readonly BlockFieldSchema[] {
+   return BLOCK_SCHEMA_BY_GAME[gameCode][blockKind] ?? EMPTY_BLOCK_SCHEMA
+ }
+diff --git a/src/lib/structuredEditor.test.ts b/src/lib/structuredEditor.test.ts
+index 0be8f1c..72ae1dc 100644
+--- a/src/lib/structuredEditor.test.ts
++++ b/src/lib/structuredEditor.test.ts
+@@ -106,38 +106,46 @@ function buildSampleSave(gameCode: SampleGameCode = 'FE8'): File {
+ }
+ 
+ describe('structuredEditor', () => {
+   it('includes domain/group metadata on structured rows', async () => {
+     const parsed = await parseSaveFile(buildSampleSave('FE8'))
+     const row = getStructuredRows(parsed, 0)[0]
+     expect(row).toHaveProperty('domain')
+     expect(row).toHaveProperty('groupKey')
+     expect(row).toHaveProperty('memberPath')
+   })
+-  it('returns known PlaySt rows for FE8 save and suspend blocks plus generic rows for unknown regions', async () => {
++  it('returns FE8 unit, inventory, and progress rows for save and suspend blocks', async () => {
+     const parsed = await parseSaveFile(buildSampleSave())
+ 
+     const saveRows = getStructuredRows(parsed, 0)
+     const suspendRows = getStructuredRows(parsed, 1)
+     const archiveRows = getStructuredRows(parsed, 6)
+     const playerNameRow = saveRows.find((row) => row.labelKey === 'field.playst.playerName')
+     const genericSaveRows = saveRows.filter((row) => row.type === 'bytes')
++    const unitLevelRow = saveRows.find((row) => row.memberPath === 'units[0].level')
+ 
+     expect(saveRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(true)
+     expect(saveRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(true)
++    expect(saveRows.some((row) => row.domain === 'units')).toBe(true)
++    expect(saveRows.some((row) => row.domain === 'inventory')).toBe(true)
++    expect(saveRows.some((row) => row.domain === 'progressFlags')).toBe(true)
++    expect(unitLevelRow?.groupKey).toBe('units.0')
+     expect(saveRows.some((row) => row.type === 'bytes')).toBe(true)
+     expect(playerNameRow?.size).toBe(0x0b)
+     expect(genericSaveRows.some((row) => row.labelKey === 'field.unknown.bytes')).toBe(true)
+     expect(genericSaveRows.some((row) => row.size === GENERIC_ROW_CHUNK_SIZE)).toBe(true)
+ 
+     expect(suspendRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(true)
+     expect(suspendRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(true)
++    expect(suspendRows.some((row) => row.domain === 'units')).toBe(true)
++    expect(suspendRows.some((row) => row.domain === 'inventory')).toBe(true)
++    expect(suspendRows.some((row) => row.domain === 'progressFlags')).toBe(true)
+ 
+     expect(archiveRows.length).toBe(parsed.blocks[6].size / GENERIC_ROW_CHUNK_SIZE)
+     expect(archiveRows.every((row) => row.type === 'bytes')).toBe(true)
+     expect(archiveRows.every((row) => row.size === GENERIC_ROW_CHUNK_SIZE)).toBe(true)
+   })
+ 
+   it('falls back to generic rows for FE6, FE7, and UNKNOWN save blocks', async () => {
+     for (const gameCode of ['FE6', 'FE7', 'UNKNOWN'] as const) {
+       const parsed = await parseSaveFile(buildSampleSave(gameCode))
+       const saveRows = getStructuredRows(parsed, 0)
+@@ -150,33 +158,37 @@ describe('structuredEditor', () => {
+       expect(saveRows.every((row) => row.size === GENERIC_ROW_CHUNK_SIZE)).toBe(true)
+       expect(saveRows.some((row) => row.labelKey === 'field.unknown.bytes')).toBe(true)
+     }
+   })
+ 
+   it('applies structured edits to known and generic rows while preserving valid checksums', async () => {
+     const parsed = await parseSaveFile(buildSampleSave())
+     const saveRows = getStructuredRows(parsed, 0)
+     const goldRow = saveRows.find((row) => row.labelKey === 'field.playst.gold')
+     const nameRow = saveRows.find((row) => row.labelKey === 'field.playst.playerName')
++    const unitLevelRow = saveRows.find((row) => row.memberPath === 'units[0].level')
+     const genericRow = getStructuredRows(parsed, 6).find((row) => row.offset === 0x10)
+ 
+     expect(goldRow).toBeDefined()
+     expect(nameRow).toBeDefined()
++    expect(unitLevelRow).toBeDefined()
+     expect(genericRow).toBeDefined()
+ 
+     const afterGold = applyStructuredEdit(parsed, 0, goldRow!.key, '77777')
+     const afterName = applyStructuredEdit(afterGold, 0, nameRow!.key, 'Seth')
++    const afterUnitLevel = applyStructuredEdit(afterName, 0, unitLevelRow!.key, '20')
+     const nextGenericValue = `AB${String(genericRow!.value).slice(2)}`
+-    const afterGeneric = applyStructuredEdit(afterName, 6, genericRow!.key, nextGenericValue)
++    const afterGeneric = applyStructuredEdit(afterUnitLevel, 6, genericRow!.key, nextGenericValue)
+ 
+     expect(getStructuredRows(afterGeneric, 0).find((row) => row.key === goldRow!.key)?.value).toBe(77777)
+     expect(getStructuredRows(afterGeneric, 0).find((row) => row.key === nameRow!.key)?.value).toBe('Seth')
++    expect(getStructuredRows(afterGeneric, 0).find((row) => row.key === unitLevelRow!.key)?.value).toBe(20)
+     expect(readBlockBytes(afterGeneric, 6)[0x10]).toBe(0xab)
+     expect(afterGeneric.blocks[0].checksumValid).toBe(true)
+     expect(afterGeneric.blocks[6].checksumValid).toBe(true)
+   })
+ 
+   it('rejects invalid structured edits without mutating canonical bytes', async () => {
+     const parsed = await parseSaveFile(buildSampleSave())
+     const before = parsed.bytes.slice()
+     const saveRows = getStructuredRows(parsed, 0)
+     const saveSlotRow = saveRows.find((row) => row.labelKey === 'field.playst.saveSlot')

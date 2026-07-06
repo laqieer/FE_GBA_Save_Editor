@@ -1,0 +1,417 @@
+# Review package: ff8fe6e..f07bf6b
+
+## Commits
+f07bf6b fix: wire technical labels in structured editor
+9cfa651 docs: finalize meaningful structured editor coverage
+
+## Files changed
+ .superpowers/sdd/msf-task-6-report.md        | 22 ++++++++++++
+ README.md                                    |  2 +-
+ src/components/BlockStructuredTable.test.tsx | 50 ++++++++++++++++++++++++++++
+ src/components/BlockStructuredTable.tsx      | 12 ++++++-
+ src/i18n.test.ts                             | 33 ++++++++++++++++++
+ src/i18n.ts                                  | 12 +++++++
+ src/lib/structuredTableLayout.test.ts        | 13 ++++++++
+ src/lib/structuredTableLayout.ts             | 10 +++---
+ 8 files changed, 147 insertions(+), 7 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/msf-task-6-report.md b/.superpowers/sdd/msf-task-6-report.md
+new file mode 100644
+index 0000000..2fda4cf
+--- /dev/null
++++ b/.superpowers/sdd/msf-task-6-report.md
+@@ -0,0 +1,22 @@
++Task 6 Report
++
++Status: Completed
++
++Commit: 51782a6 - fix: wire technical labels in structured editor
++
++One-line test summary: Focused vitest run passed (3 files, 7 tests); build passed.
++
++Changes made:
++- Wired structured domain titles to structuredDomainUnits / structuredDomainInventory / structuredDomainProgressFlags.
++- Rendered technical rows with technicalFieldLabel using memberPath and offset.
++- Added runtime coverage for domain title keys and technical label rendering.
++- Strengthened i18n tests to verify en/ja/zh values for the new keys.
++
++Verification performed:
++- npm run test:run -- src/lib/structuredTableLayout.test.ts src/components/BlockStructuredTable.test.tsx src/i18n.test.ts
++- npm run build
++
++Concerns/Notes:
++- Technical labels now fall back to memberPath + hex offset if localization is missing.
++
++Report path: .superpowers/sdd/msf-task-6-report.md
+diff --git a/README.md b/README.md
+index 8c93b3a..27ab3c7 100644
+--- a/README.md
++++ b/README.md
+@@ -2,21 +2,21 @@
+ 
+ Browser-based save editor for **Fire Emblem 6 / 7 / 8** (`.sav`) with automatic checksum repair and GitHub Pages deployment.
+ 
+ ## Features
+ 
+ - Load `.sav` files directly in browser (no server upload)
+ - Parse global metadata + 7 save block headers
+ - Validate metadata checksum and block checksums
+ - Edit every present save block (`#0`-`#6`)
+ - Switch between synchronized structured and hex editors for each block
+-- Known FE8 PlaySt fields keep labeled structured rows, while uncovered regions remain editable as raw bytes
++- Known FE6/FE7/FE8 structured fields provide meaningful labeled rows; FE6/FE7 unnamed members fall back to deterministic technical labels while uncovered regions remain editable as raw bytes
+ - Recompute block checksums after every edit and repair the global checksum on export
+ - Export patched `.sav` with updated checksums
+ - Responsive UI for desktop/mobile
+ - i18n: English, Japanese, Chinese
+ 
+ ## References
+ 
+ - Source code: <https://github.com/laqieer/FE_GBA_Save_Editor>
+ - GameFAQs saves: <https://gamefaqs.gamespot.com/search?game=fire+emblem>
+ - FE maps: <https://github.com/laqieer/fe-maps>
+diff --git a/src/components/BlockStructuredTable.test.tsx b/src/components/BlockStructuredTable.test.tsx
+new file mode 100644
+index 0000000..9369b19
+--- /dev/null
++++ b/src/components/BlockStructuredTable.test.tsx
+@@ -0,0 +1,50 @@
++import { renderToStaticMarkup } from 'react-dom/server'
++import { beforeEach, describe, expect, it } from 'vitest'
++import i18n from '../i18n'
++import type { FieldRow } from '../lib/structuredEditor'
++import { BlockStructuredTable } from './BlockStructuredTable'
++
++function makeRow(overrides: Partial<FieldRow> & Pick<FieldRow, 'key'>): FieldRow {
++  return {
++    key: overrides.key,
++    domain: overrides.domain ?? 'playState',
++    groupKey: overrides.groupKey ?? 'playst',
++    memberPath: overrides.memberPath ?? overrides.key,
++    offset: overrides.offset ?? 0,
++    size: overrides.size ?? 1,
++    type: overrides.type ?? 'u8',
++    labelKey: overrides.labelKey ?? 'field.playst.gold',
++    value: overrides.value ?? 0,
++    bitIndex: overrides.bitIndex,
++    unitIndex: overrides.unitIndex,
++  }
++}
++
++describe('BlockStructuredTable', () => {
++  beforeEach(() => {
++    void i18n.changeLanguage('en')
++  })
++
++  it('renders technical rows with the translated technical label template', () => {
++    const markup = renderToStaticMarkup(
++      <BlockStructuredTable
++        blockKey="test-block"
++        rows={[
++          makeRow({
++            key: 'technical-row',
++            domain: 'playState',
++            groupKey: 'playst',
++            memberPath: 'fe6Units[0].raw_34',
++            offset: 0x34,
++            labelKey: 'field.tech.fe6Units_0_raw_34',
++            value: 0,
++          }),
++        ]}
++        onApplyEdit={() => undefined}
++      />,
++    )
++
++    expect(markup).toContain('Technical field: fe6Units[0].raw_34 (0x0034)')
++    expect(markup).not.toContain('field.tech.fe6Units_0_raw_34')
++  })
++})
+diff --git a/src/components/BlockStructuredTable.tsx b/src/components/BlockStructuredTable.tsx
+index f429024..ef4bcdc 100644
+--- a/src/components/BlockStructuredTable.tsx
++++ b/src/components/BlockStructuredTable.tsx
+@@ -18,20 +18,24 @@ type BlockStructuredTableProps = {
+ }
+ 
+ function formatRowValue(value: number | string): string {
+   return String(value)
+ }
+ 
+ function formatOffset(offset: number): string {
+   return `0x${offset.toString(16).toUpperCase().padStart(4, '0')}`
+ }
+ 
++function formatTechnicalOffset(offset: number): string {
++  return formatOffset(offset).slice(2)
++}
++
+ function formatTypeLabel(type: FieldRow['type']): string {
+   return type === 'bytes' ? 'HEX' : type.toUpperCase()
+ }
+ 
+ function toTranslatedError(
+   t: (key: string, options?: Record<string, unknown>) => string,
+   error: unknown,
+ ): string {
+   if (error instanceof Error) {
+     return t(error.message, { defaultValue: error.message })
+@@ -146,21 +150,27 @@ export function BlockStructuredTable({
+         ...current,
+         errors: {
+           ...current.errors,
+           [rowKey]: toTranslatedError(t, error),
+         },
+       }))
+     }
+   }
+ 
+   function renderRow(row: FieldRow) {
+-    const fieldLabel = t(row.labelKey, { defaultValue: row.labelKey })
++    const fieldLabel = row.labelKey.startsWith('field.tech.')
++      ? t('technicalFieldLabel', {
++          memberPath: row.memberPath,
++          offset: formatTechnicalOffset(row.offset),
++          defaultValue: `${row.memberPath} (${formatOffset(row.offset)})`,
++        })
++      : t(row.labelKey, { defaultValue: row.labelKey })
+     const error = state.errors[row.key]
+     const draftValue = state.drafts[row.key] ?? canonicalValues[row.key] ?? ''
+     const isDirty = draftValue !== canonicalValues[row.key]
+ 
+     return (
+       <tr key={row.key}>
+         <td className="mono">{formatOffset(row.offset)}</td>
+         <td>{fieldLabel}</td>
+         <td className="mono">{formatTypeLabel(row.type)}</td>
+         <td>{row.size}</td>
+diff --git a/src/i18n.test.ts b/src/i18n.test.ts
+index 3d994dc..3496df0 100644
+--- a/src/i18n.test.ts
++++ b/src/i18n.test.ts
+@@ -1,20 +1,53 @@
+ import { describe, expect, it } from 'vitest'
+ import i18n from './i18n'
+ 
+ describe('i18n', () => {
+   it('uses generic editable-block copy across locales', () => {
+     expect(i18n.getResourceBundle('en', 'translation').noEditableBlock).toBe('No editable block found.')
+     expect(i18n.getResourceBundle('ja', 'translation').noEditableBlock).toBe('編集可能なブロックが見つかりません。')
+     expect(i18n.getResourceBundle('zh', 'translation').noEditableBlock).toBe('未找到可编辑的区块。')
+   })
+ 
++  it('contains localized structured domain and technical label keys in every locale', () => {
++    const expected = {
++      en: {
++        structuredDomainUnits: 'Units',
++        structuredDomainInventory: 'Inventory / Convoy',
++        structuredDomainProgressFlags: 'Progress / Flags',
++        technicalFieldLabel: 'Technical field: {{memberPath}} (0x{{offset}})',
++      },
++      ja: {
++        structuredDomainUnits: 'ユニット',
++        structuredDomainInventory: 'アイテム / 輸送隊',
++        structuredDomainProgressFlags: '進行 / フラグ',
++        technicalFieldLabel: '技術項目: {{memberPath}} (0x{{offset}})',
++      },
++      zh: {
++        structuredDomainUnits: '单位',
++        structuredDomainInventory: '道具 / 运输队',
++        structuredDomainProgressFlags: '进度 / 标记',
++        technicalFieldLabel: '技术字段：{{memberPath}} (0x{{offset}})',
++      },
++    } as const
++
++    for (const language of ['en', 'ja', 'zh'] as const) {
++      const bundle = i18n.getResourceBundle(language, 'translation') as Record<string, string>
++      expect(bundle.structuredDomainUnits).toBe(expected[language].structuredDomainUnits)
++      expect(bundle.structuredDomainInventory).toBe(expected[language].structuredDomainInventory)
++      expect(bundle.structuredDomainProgressFlags).toBe(
++        expected[language].structuredDomainProgressFlags,
++      )
++      expect(bundle.technicalFieldLabel).toBe(expected[language].technicalFieldLabel)
++    }
++  })
++
+   it('includes full-block editor labels and validation errors in every locale', () => {
+     const requiredKeys = [
+       'blockEditor',
+       'structuredTab',
+       'hexTab',
+       'editorUnknownError',
+       'hexEditor.hex',
+       'hexEditor.pageStatus',
+       'hexEditor.byteRange',
+       'hexEditor.invalidByte',
+diff --git a/src/i18n.ts b/src/i18n.ts
+index cf62ca6..3dad741 100644
+--- a/src/i18n.ts
++++ b/src/i18n.ts
+@@ -59,20 +59,24 @@ const resources = {
+       'structuredEditor.textTooLong': 'Text is too long for this field.',
+       'structuredEditor.pageStatus': 'Page {{current}} / {{total}}',
+       'structuredEditor.expandGroup': 'Expand group',
+       'structuredEditor.collapseGroup': 'Collapse group',
+       'structuredEditor.fieldCount': '{{count}} fields',
+       'structuredEditor.domain.playState': 'Play state',
+       'structuredEditor.domain.units': 'Units',
+       'structuredEditor.domain.inventory': 'Inventory',
+       'structuredEditor.domain.progressFlags': 'Progress flags',
+       'structuredEditor.domain.technical': 'Technical',
++      structuredDomainUnits: 'Units',
++      structuredDomainInventory: 'Inventory / Convoy',
++      structuredDomainProgressFlags: 'Progress / Flags',
++      technicalFieldLabel: 'Technical field: {{memberPath}} (0x{{offset}})',
+       'structuredEditor.group.playState': 'Play state',
+       'structuredEditor.group.unit': 'Unit {{index}}',
+       'structuredEditor.group.inventoryConvoy': 'Convoy',
+       'structuredEditor.group.progressChapter': 'Chapter flags',
+       'structuredEditor.group.progressSupport': 'Support flags',
+       'structuredEditor.group.progressWorld': 'World flags',
+       'structuredEditor.group.unknown': 'Raw bytes',
+       'field.playst.gold': 'Gold',
+       'field.playst.saveSlot': 'Save slot',
+       'field.playst.chapterIndex': 'Chapter index',
+@@ -182,20 +186,24 @@ const resources = {
+       'structuredEditor.textTooLong': '文字列が長すぎます。',
+       'structuredEditor.pageStatus': '{{current}} / {{total}} ページ',
+       'structuredEditor.expandGroup': 'グループを展開',
+       'structuredEditor.collapseGroup': 'グループを折りたたむ',
+       'structuredEditor.fieldCount': '{{count}} 件',
+       'structuredEditor.domain.playState': 'プレイ状態',
+       'structuredEditor.domain.units': 'ユニット',
+       'structuredEditor.domain.inventory': '持ち物',
+       'structuredEditor.domain.progressFlags': '進行フラグ',
+       'structuredEditor.domain.technical': '技術項目',
++      structuredDomainUnits: 'ユニット',
++      structuredDomainInventory: 'アイテム / 輸送隊',
++      structuredDomainProgressFlags: '進行 / フラグ',
++      technicalFieldLabel: '技術項目: {{memberPath}} (0x{{offset}})',
+       'structuredEditor.group.playState': 'プレイ状態',
+       'structuredEditor.group.unit': 'ユニット {{index}}',
+       'structuredEditor.group.inventoryConvoy': '輸送隊',
+       'structuredEditor.group.progressChapter': '章フラグ',
+       'structuredEditor.group.progressSupport': '支援フラグ',
+       'structuredEditor.group.progressWorld': 'ワールドフラグ',
+       'structuredEditor.group.unknown': '生バイト',
+       'field.playst.gold': '所持金',
+       'field.playst.saveSlot': 'セーブ番号',
+       'field.playst.chapterIndex': '章番号',
+@@ -305,20 +313,24 @@ const resources = {
+       'structuredEditor.textTooLong': '文本长度超出该字段限制。',
+       'structuredEditor.pageStatus': '第 {{current}} / {{total}} 页',
+       'structuredEditor.expandGroup': '展开分组',
+       'structuredEditor.collapseGroup': '折叠分组',
+       'structuredEditor.fieldCount': '{{count}} 项',
+       'structuredEditor.domain.playState': '流程状态',
+       'structuredEditor.domain.units': '单位',
+       'structuredEditor.domain.inventory': '道具',
+       'structuredEditor.domain.progressFlags': '进度标记',
+       'structuredEditor.domain.technical': '技术字段',
++      structuredDomainUnits: '单位',
++      structuredDomainInventory: '道具 / 运输队',
++      structuredDomainProgressFlags: '进度 / 标记',
++      technicalFieldLabel: '技术字段：{{memberPath}} (0x{{offset}})',
+       'structuredEditor.group.playState': '流程状态',
+       'structuredEditor.group.unit': '单位 {{index}}',
+       'structuredEditor.group.inventoryConvoy': '运输队',
+       'structuredEditor.group.progressChapter': '章节标记',
+       'structuredEditor.group.progressSupport': '支援标记',
+       'structuredEditor.group.progressWorld': '世界标记',
+       'structuredEditor.group.unknown': '原始字节',
+       'field.playst.gold': '金钱',
+       'field.playst.saveSlot': '存档位',
+       'field.playst.chapterIndex': '章节索引',
+diff --git a/src/lib/structuredTableLayout.test.ts b/src/lib/structuredTableLayout.test.ts
+index cc10bdb..7eed99b 100644
+--- a/src/lib/structuredTableLayout.test.ts
++++ b/src/lib/structuredTableLayout.test.ts
+@@ -39,35 +39,48 @@ describe('structuredTableLayout', () => {
+         groupKey: 'units.0',
+         memberPath: 'units[0].exp',
+         unitIndex: 0,
+       }),
+       makeRow({
+         key: 'inventory.convoy.0.itemId',
+         domain: 'inventory',
+         groupKey: 'inventory.convoy',
+         memberPath: 'inventory.convoy[0].itemId',
+       }),
++      makeRow({
++        key: 'progress.chapterState',
++        domain: 'progressFlags',
++        groupKey: 'progressFlags.chapter',
++        memberPath: 'progressFlags.chapterState',
++      }),
+       makeRow({
+         key: 'unit.1.level',
+         domain: 'units',
+         groupKey: 'units.1',
+         memberPath: 'units[1].level',
+         unitIndex: 1,
+       }),
+     ]
+ 
+     const grouped = groupRowsByDomainAndGroup(rows)
+ 
+     expect(grouped.map((section) => section.domain)).toEqual([
+       'playState',
+       'units',
+       'inventory',
++      'progressFlags',
++    ])
++    expect(grouped.map((section) => section.title.labelKey)).toEqual([
++      'structuredEditor.domain.playState',
++      'structuredDomainUnits',
++      'structuredDomainInventory',
++      'structuredDomainProgressFlags',
+     ])
+     expect(grouped[1]?.groups.map((group) => group.groupKey)).toEqual([
+       'units.0',
+       'units.1',
+     ])
+     expect(grouped[1]?.groups[0]?.rows.map((row) => row.key)).toEqual([
+       'unit.0.level',
+       'unit.0.exp',
+     ])
+   })
+diff --git a/src/lib/structuredTableLayout.ts b/src/lib/structuredTableLayout.ts
+index b6b1b57..46c82ec 100644
+--- a/src/lib/structuredTableLayout.ts
++++ b/src/lib/structuredTableLayout.ts
+@@ -24,30 +24,30 @@ export type StructuredDomainSection = {
+ }
+ 
+ export const STRUCTURED_DOMAIN_PAGE_SIZE = 32
+ 
+ const DOMAIN_LABELS: Record<FieldRow['domain'], LabelDescriptor> = {
+   playState: {
+     labelKey: 'structuredEditor.domain.playState',
+     defaultLabel: 'Play state',
+   },
+   units: {
+-    labelKey: 'structuredEditor.domain.units',
++    labelKey: 'structuredDomainUnits',
+     defaultLabel: 'Units',
+   },
+   inventory: {
+-    labelKey: 'structuredEditor.domain.inventory',
+-    defaultLabel: 'Inventory',
++    labelKey: 'structuredDomainInventory',
++    defaultLabel: 'Inventory / Convoy',
+   },
+   progressFlags: {
+-    labelKey: 'structuredEditor.domain.progressFlags',
+-    defaultLabel: 'Progress flags',
++    labelKey: 'structuredDomainProgressFlags',
++    defaultLabel: 'Progress / Flags',
+   },
+   technical: {
+     labelKey: 'structuredEditor.domain.technical',
+     defaultLabel: 'Technical',
+   },
+ }
+ 
+ const GROUP_LABELS: Record<string, LabelDescriptor> = {
+   playst: {
+     labelKey: 'structuredEditor.group.playState',
