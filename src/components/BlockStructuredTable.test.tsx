@@ -2,7 +2,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it } from 'vitest'
 import i18n from '../i18n'
 import type { FieldRow } from '../lib/structuredEditor'
-import { groupRowsByDomainAndGroup } from '../lib/structuredTableLayout'
+import { groupRowsByDomainAndGroup, paginateStructuredSection } from '../lib/structuredTableLayout'
+import { parsePageJump } from '../lib/structuredNavigation'
 import {
   BlockStructuredTable,
   buildUnitSelectorOptions,
@@ -92,5 +93,65 @@ describe('BlockStructuredTable', () => {
     expect(resolveUnitSelectorPage(section, '2', options)).toBe(1)
     expect(resolveUnitSelectorPage(section, '999', options)).toBeNull()
     expect(resolveUnitSelectorFallbackPage(section, '999', options)).toBe(0)
+  })
+
+  it('goes to the requested page and rejects invalid page input', () => {
+    const rows: FieldRow[] = [
+      ...Array.from({ length: 31 }, (_, index) =>
+        makeRow({
+          key: `playst.${index}`,
+          domain: 'playState',
+          groupKey: 'playst',
+          memberPath: `playst.${index}`,
+          offset: index,
+        }),
+      ),
+      ...Array.from({ length: 5 }, (_, index) =>
+        makeRow({
+          key: `chapter.${index}`,
+          domain: 'playState',
+          groupKey: 'chapter',
+          memberPath: `chapter.${index}`,
+          offset: 31 + index,
+        }),
+      ),
+    ]
+    const section = groupRowsByDomainAndGroup(rows)[0]!
+
+    expect(parsePageJump('2', 2)).toBe(1)
+    expect(parsePageJump('999', 2)).toBe(1)
+    expect(parsePageJump('0', 2)).toBeNull()
+    expect(parsePageJump('abc', 2)).toBeNull()
+
+    const page = paginateStructuredSection(section, parsePageJump('2', 2)!)
+    expect(page.currentPage).toBe(1)
+    expect(page.visibleGroupIds).toEqual(['playState:chapter'])
+    expect(page.rows.map((row) => row.key)).toEqual([
+      'chapter.1',
+      'chapter.2',
+      'chapter.3',
+      'chapter.4',
+    ])
+  })
+
+  it('changes visible rows when a different unit is selected', () => {
+    const section = groupRowsByDomainAndGroup([
+      makeRow({ key: 'u0.a', domain: 'units', groupKey: 'units.0', unitIndex: 0 }),
+      makeRow({ key: 'u0.b', domain: 'units', groupKey: 'units.0', unitIndex: 0 }),
+      makeRow({ key: 'u1.a', domain: 'units', groupKey: 'units.1', unitIndex: 1 }),
+      makeRow({ key: 'u1.b', domain: 'units', groupKey: 'units.1', unitIndex: 1 }),
+    ]).find((candidate) => candidate.domain === 'units')
+
+    expect(section).toBeDefined()
+    if (!section) return
+
+    const options = buildUnitSelectorOptions(section, i18n.t.bind(i18n))
+    const pageIndex = resolveUnitSelectorPage(section, 'Unit 2', options)
+
+    expect(pageIndex).toBe(1)
+
+    const page = paginateStructuredSection(section, pageIndex ?? 0)
+    expect(page.visibleGroupIds).toEqual(['units:units.1'])
+    expect(page.rows.map((row) => row.key)).toEqual(['u1.a', 'u1.b'])
   })
 })

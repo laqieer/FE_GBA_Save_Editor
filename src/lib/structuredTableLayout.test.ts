@@ -163,6 +163,40 @@ describe('structuredTableLayout', () => {
     expect(page1.rows.map((r) => r.key)).toEqual(['u1.a'])
   })
 
+  it('falls back to row chunks for non-units sections and exposes visible group ids', () => {
+    const rows: FieldRow[] = [
+      ...Array.from({ length: 31 }, (_, index) =>
+        makeRow({
+          key: `playst.${index}`,
+          domain: 'playState',
+          groupKey: 'playst',
+          memberPath: `playst.${index}`,
+          offset: index,
+        }),
+      ),
+      ...Array.from({ length: 5 }, (_, index) =>
+        makeRow({
+          key: `chapter.${index}`,
+          domain: 'playState',
+          groupKey: 'chapter',
+          memberPath: `chapter.${index}`,
+          offset: 31 + index,
+        }),
+      ),
+    ]
+    const section = groupRowsByDomainAndGroup(rows)[0]!
+    const page0 = paginateStructuredSection(section, 0)
+    const page1 = paginateStructuredSection(section, 1)
+
+    expect(page0.currentPage).toBe(0)
+    expect(page0.totalPages).toBe(2)
+    expect(page0.rows).toHaveLength(32)
+    expect(page0.visibleGroupIds).toEqual(['playState:playst', 'playState:chapter'])
+    expect(page1.currentPage).toBe(1)
+    expect(page1.rows).toHaveLength(4)
+    expect(page1.visibleGroupIds).toEqual(['playState:chapter'])
+  })
+
   it('returns unit group indexes for units section', () => {
     const rows: FieldRow[] = [
       makeRow({ key: 'u0.a', domain: 'units', groupKey: 'units.0', unitIndex: 0 }),
