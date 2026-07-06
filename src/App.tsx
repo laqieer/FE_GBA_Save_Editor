@@ -113,7 +113,7 @@ function App() {
       <section className="toolbar">
         <label className="file-input">
           {t('upload')}
-          <input type="file" accept=".sav" onChange={(e) => onFileChange(e.target.files?.[0])} />
+          <input type="file" accept=".sav,.sps" onChange={(e) => onFileChange(e.target.files?.[0])} />
         </label>
       </section>
 

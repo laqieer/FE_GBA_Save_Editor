@@ -1,3 +1,3 @@
 export function isSupportedSaveFile(fileName: string): boolean {
-  return /\.sav$/i.test(fileName)
+  return /\.(sav|sps)$/i.test(fileName)
 }
