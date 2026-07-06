@@ -69,6 +69,7 @@ async function mountTable(
     root.render(
       <BlockStructuredTable
         blockKey={nextBlockKey}
+        gameCode="UNKNOWN"
         rows={nextRows}
         onApplyEdit={onApplyEdit}
       />,
@@ -153,6 +154,7 @@ describe('BlockStructuredTable', () => {
     const markup = renderToStaticMarkup(
       <BlockStructuredTable
         blockKey="test-block"
+        gameCode="UNKNOWN"
         rows={[
           makeRow({
             key: 'technical-row',
@@ -172,10 +174,11 @@ describe('BlockStructuredTable', () => {
     expect(markup).not.toContain('field.tech.fe6Units_0_raw_34')
   })
 
-  it('renders ID hint copy for character/class/item fields', () => {
+  it('renders real ID names for character/class/item fields and skips playthrough IDs', () => {
     const markup = renderToStaticMarkup(
       <BlockStructuredTable
         blockKey="test-block"
+        gameCode="FE8"
         rows={[
           makeRow({
             key: 'unit.characterId',
@@ -183,7 +186,7 @@ describe('BlockStructuredTable', () => {
             groupKey: 'units.0',
             memberPath: 'units[0].characterId',
             labelKey: 'field.unit.characterId',
-            value: 12,
+            value: 1,
           }),
           makeRow({
             key: 'unit.classId',
@@ -191,7 +194,7 @@ describe('BlockStructuredTable', () => {
             groupKey: 'units.0',
             memberPath: 'units[0].classId',
             labelKey: 'field.unit.classId',
-            value: 0,
+            value: 7,
           }),
           makeRow({
             key: 'unit.itemId',
@@ -199,22 +202,33 @@ describe('BlockStructuredTable', () => {
             groupKey: 'units.0',
             memberPath: 'units[0].items[0].itemId',
             labelKey: 'field.unit.itemId',
-            value: 45,
+            value: 1,
+          }),
+          makeRow({
+            key: 'playst.playthroughId',
+            domain: 'playState',
+            groupKey: 'playst',
+            memberPath: 'playst.playthroughId',
+            labelKey: 'field.playst.playthroughId',
+            value: 4,
           }),
         ]}
         onApplyEdit={() => undefined}
       />,
     )
 
-    expect(markup).toContain('Character name: Unknown (ID 12)')
-    expect(markup).toContain('Class name: None (ID 0)')
-    expect(markup).toContain('Item name: Unknown (ID 45)')
+    expect(markup).toContain('Character name: Eirika (ID 1)')
+    expect(markup).toContain('Class name: Paladin (ID 7)')
+    expect(markup).toContain('Item name: Iron Sword (ID 1)')
+    expect(markup).not.toContain('Playthrough name:')
+    expect(markup).not.toContain('Unknown')
   })
 
   it('renders page jump and searchable unit selector controls for structured sections', () => {
     const markup = renderToStaticMarkup(
       <BlockStructuredTable
         blockKey="test-block"
+        gameCode="UNKNOWN"
         rows={[
           makeRow({ key: 'u0', domain: 'units', groupKey: 'units.0', unitIndex: 0 }),
           makeRow({ key: 'u1', domain: 'units', groupKey: 'units.1', unitIndex: 1 }),

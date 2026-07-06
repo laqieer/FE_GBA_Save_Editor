@@ -67,6 +67,7 @@ export function BlockEditorTabs({
       <div role="tabpanel" hidden={activeTab !== 'structured'}>
         <BlockStructuredTable
           blockKey={blockKey}
+          gameCode={parsed.gameCode}
           rows={structuredRows}
           onApplyEdit={handleStructuredEdit}
         />

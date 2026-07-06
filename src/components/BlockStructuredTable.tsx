@@ -4,7 +4,9 @@ import {
   reconcileDraftErrors,
   reconcileDraftValues,
 } from '../lib/editorDraftState'
+import { resolveIdDisplayName } from '../lib/idNameLookup'
 import type { FieldRow } from '../lib/structuredEditor'
+import type { GameCode } from '../lib/saveCodec'
 import {
   groupRowsByDomainAndGroup,
   paginateStructuredSection,
@@ -14,6 +16,7 @@ import { findUnitPageByIndex, parsePageJump } from '../lib/structuredNavigation'
 
 type BlockStructuredTableProps = {
   blockKey: string
+  gameCode: GameCode
   rows: FieldRow[]
   onApplyEdit: (rowKey: string, nextValue: string) => void
 }
@@ -27,7 +30,7 @@ export type UnitSelectorOption = {
   searchText: string
 }
 
-type IdKind = 'character' | 'class' | 'item' | 'id'
+type IdKind = 'character' | 'class' | 'item'
 
 function formatRowValue(value: number | string): string {
   return String(value)
@@ -45,33 +48,15 @@ function formatTypeLabel(type: FieldRow['type']): string {
   return type === 'bytes' ? 'HEX' : type.toUpperCase()
 }
 
-function toSentenceCaseWords(value: string): string {
-  return value
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_\-.]+/g, ' ')
-    .trim()
-    .replace(/\s+/g, ' ')
-}
-
-function resolveIdKind(row: FieldRow): IdKind | string | null {
+function resolveIdKind(row: FieldRow): IdKind | null {
   if (row.labelKey === 'field.unit.characterId') return 'character'
   if (row.labelKey === 'field.unit.classId') return 'class'
   if (row.labelKey === 'field.unit.itemId' || row.labelKey === 'field.inventory.convoyItemId') return 'item'
 
-  const memberToken = /\.([a-zA-Z0-9]+Id)$/.exec(row.memberPath)?.[1]
-  if (memberToken) {
-    return memberToken.slice(0, -2) || 'id'
-  }
-
-  const labelToken = /^field\.[^.]+\.([a-zA-Z0-9]+Id)$/.exec(row.labelKey)?.[1]
-  if (labelToken) {
-    return labelToken.slice(0, -2) || 'id'
-  }
-
   return null
 }
 
-function formatIdHint(row: FieldRow, t: Translate): string | null {
+function formatIdHint(row: FieldRow, gameCode: GameCode, t: Translate): string | null {
   if (typeof row.value !== 'number' || !Number.isSafeInteger(row.value)) {
     return null
   }
@@ -80,18 +65,11 @@ function formatIdHint(row: FieldRow, t: Translate): string | null {
     return null
   }
 
-  const kindLabel =
-    idKind === 'character' || idKind === 'class' || idKind === 'item' || idKind === 'id'
-      ? t(`structuredEditor.idKind.${idKind}`, {
-          defaultValue: toSentenceCaseWords(idKind).replace(/^./, (char) => char.toUpperCase()),
-        })
-      : toSentenceCaseWords(idKind).replace(/^./, (char) => char.toUpperCase())
-
+  const kindLabel = t(`structuredEditor.idKind.${idKind}`)
+  const lookedUpName = resolveIdDisplayName(gameCode, idKind, row.value)
   const name = row.value === 0
     ? t('structuredEditor.idName.none', { defaultValue: 'None' })
-    : t(`structuredEditor.idName.${idKind}.${row.value}`, {
-        defaultValue: t('structuredEditor.idName.unknown', { defaultValue: 'Unknown' }),
-      })
+    : lookedUpName ?? t('structuredEditor.idName.unknown', { defaultValue: 'Unknown' })
 
   return t('structuredEditor.idHint', {
     kind: kindLabel,
@@ -192,6 +170,7 @@ function getUnitSelectorValue(
 
 export function BlockStructuredTable({
   blockKey,
+  gameCode,
   rows,
   onApplyEdit,
 }: BlockStructuredTableProps) {
@@ -381,7 +360,7 @@ export function BlockStructuredTable({
     const error = state.errors[row.key]
     const draftValue = state.drafts[row.key] ?? canonicalValues[row.key] ?? ''
     const isDirty = draftValue !== canonicalValues[row.key]
-    const idHint = formatIdHint(row, t)
+    const idHint = formatIdHint(row, gameCode, t)
 
     return (
       <tr key={row.key}>
