@@ -106,6 +106,139 @@ function Get-MappedGameCode {
   }
 }
 
+function Get-ArchiveFormat {
+  param([string]$ArchivePath)
+
+  return [System.IO.Path]::GetExtension($ArchivePath).TrimStart('.').ToLowerInvariant()
+}
+
+function Get-GeneratedFixtureFileName {
+  param(
+    [string]$MappedGameCode,
+    [string]$ArchiveFileName,
+    [int]$Index,
+    [int]$TotalCount
+  )
+
+  $gameCode = if ([string]::IsNullOrWhiteSpace($MappedGameCode)) { 'unknown' } else { $MappedGameCode.ToLowerInvariant() }
+  $archiveStem = [System.IO.Path]::GetFileNameWithoutExtension($ArchiveFileName).ToLowerInvariant()
+  $suffix = if ($TotalCount -gt 1) { '-{0}' -f $Index } else { '' }
+
+  return ('fireemblem-net-{0}-{1}{2}.sav' -f $gameCode, $archiveStem, $suffix)
+}
+
+function Get-ArchiveExtractionPlan {
+  param([string]$ArchivePath)
+
+  $format = Get-ArchiveFormat -ArchivePath $ArchivePath
+  $sevenZip = Get-Command 7z -ErrorAction SilentlyContinue
+  $tarCommand = Get-Command tar -ErrorAction SilentlyContinue
+  $expandArchive = Get-Command Expand-Archive -ErrorAction SilentlyContinue
+
+  switch ($format) {
+    'zip' {
+      if ($expandArchive) {
+        return [ordered]@{ format = $format; extractor = 'Expand-Archive'; commandPath = $null; available = $true; error = $null }
+      }
+      if ($tarCommand) {
+        return [ordered]@{ format = $format; extractor = 'tar'; commandPath = $tarCommand.Source; available = $true; error = $null }
+      }
+
+      return [ordered]@{ format = $format; extractor = $null; commandPath = $null; available = $false; error = 'ZIP extraction requires Expand-Archive or tar, but neither is available.' }
+    }
+    'rar' {
+      if ($sevenZip) {
+        return [ordered]@{ format = $format; extractor = '7z'; commandPath = $sevenZip.Source; available = $true; error = $null }
+      }
+      if ($tarCommand) {
+        return [ordered]@{ format = $format; extractor = 'tar'; commandPath = $tarCommand.Source; available = $true; error = $null }
+      }
+
+      return [ordered]@{ format = $format; extractor = $null; commandPath = $null; available = $false; error = 'RAR extraction requires 7z or tar, but neither is available.' }
+    }
+    default {
+      if ($tarCommand) {
+        return [ordered]@{ format = $format; extractor = 'tar'; commandPath = $tarCommand.Source; available = $true; error = $null }
+      }
+
+      return [ordered]@{ format = $format; extractor = $null; commandPath = $null; available = $false; error = ('Unsupported archive format .{0} without tar available.' -f $format) }
+    }
+  }
+}
+
+function Invoke-ArchiveExtraction {
+  param(
+    [string]$ArchivePath,
+    [string]$DestinationPath,
+    [string]$ArchiveFileName,
+    [string]$MappedGameCode,
+    [string]$FixtureRoot,
+    [string]$RepoRoot
+  )
+
+  $plan = Get-ArchiveExtractionPlan -ArchivePath $ArchivePath
+  $extraction = [ordered]@{
+    archiveFormat = $plan.format
+    extractor = $plan.extractor
+    success = $false
+    archiveEntries = @()
+    fixtureFiles = @()
+    error = $null
+  }
+
+  if (-not $plan.available) {
+    $extraction.error = $plan.error
+    return $extraction
+  }
+
+  try {
+    switch ($plan.extractor) {
+      'Expand-Archive' {
+        Expand-Archive -Path $ArchivePath -DestinationPath $DestinationPath -Force -ErrorAction Stop
+      }
+      '7z' {
+        & $plan.commandPath x -y ("-o{0}" -f $DestinationPath) $ArchivePath | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+          throw ('7z extraction failed with exit code {0}.' -f $LASTEXITCODE)
+        }
+      }
+      'tar' {
+        & $plan.commandPath -xf $ArchivePath -C $DestinationPath
+        if ($LASTEXITCODE -ne 0) {
+          throw ('tar extraction failed with exit code {0}.' -f $LASTEXITCODE)
+        }
+      }
+      default {
+        throw ('Unsupported extractor "{0}".' -f $plan.extractor)
+      }
+    }
+
+    $extractedFiles = @(Get-ChildItem -Path $DestinationPath -Recurse -File -ErrorAction Stop)
+    if ($extractedFiles.Count -eq 0) {
+      throw 'Archive extraction produced no files.'
+    }
+
+    $extraction.archiveEntries = @(
+      $extractedFiles | ForEach-Object { Convert-ToRelativePath -BasePath $DestinationPath -Path $_.FullName }
+    )
+
+    $savFiles = @($extractedFiles | Where-Object { $_.Extension -imatch '^\.sav$' })
+    for ($i = 0; $i -lt $savFiles.Count; $i += 1) {
+      $sav = $savFiles[$i]
+      $fixtureName = Get-GeneratedFixtureFileName -MappedGameCode $MappedGameCode -ArchiveFileName $ArchiveFileName -Index ($i + 1) -TotalCount $savFiles.Count
+      $fixturePath = Join-Path $FixtureRoot $fixtureName
+      Copy-Item -LiteralPath $sav.FullName -Destination $fixturePath -Force
+      $extraction.fixtureFiles += (Convert-ToRelativePath -BasePath $RepoRoot -Path $fixturePath)
+    }
+
+    $extraction.success = $true
+  } catch {
+    $extraction.error = $_.Exception.Message
+  }
+
+  return $extraction
+}
+
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\'))
 $fixtureRoot = [System.IO.Path]::GetFullPath($OutputRoot)
 $sourcesDir = Join-Path $fixtureRoot 'sources'
@@ -117,6 +250,7 @@ $sourceUrl = 'http://www.fireemblem.net/fe/download/index.htm'
 New-Item -ItemType Directory -Force -Path $fixtureRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $sourcesDir | Out-Null
 New-Item -ItemType Directory -Force -Path $archivesDir | Out-Null
+Get-ChildItem -Path $fixtureRoot -File -Filter 'fireemblem-net-*.sav' -ErrorAction SilentlyContinue | Remove-Item -Force
 
 $headers = @{
   'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
@@ -191,50 +325,25 @@ try {
       $attempt.error = $downloadAttempt.error
     }
 
-    # Attempt extraction of .sav files from the downloaded archive so fixtures are available for tests.
-    try {
-      $extraction = [ordered]@{
-        success = $false
-        files = @()
-        error = $null
+    $extraction = [ordered]@{
+      archiveFormat = Get-ArchiveFormat -ArchivePath $destinationPath
+      extractor = $null
+      success = $false
+      archiveEntries = @()
+      fixtureFiles = @()
+      error = 'download failed'
+    }
+
+    if ($attempt.success) {
+      $tempExtract = Join-Path $archivesDir ($archiveName + '.extract')
+      if (Test-Path $tempExtract) { Remove-Item -LiteralPath $tempExtract -Recurse -Force }
+      New-Item -ItemType Directory -Force -Path $tempExtract | Out-Null
+
+      try {
+        $extraction = Invoke-ArchiveExtraction -ArchivePath $destinationPath -DestinationPath $tempExtract -ArchiveFileName $archiveName -MappedGameCode $mappedGameCode -FixtureRoot $fixtureRoot -RepoRoot $repoRoot
+      } finally {
+        if (Test-Path $tempExtract) { Remove-Item -LiteralPath $tempExtract -Recurse -Force -ErrorAction SilentlyContinue }
       }
-
-      if ($attempt.success) {
-        $tempExtract = Join-Path $archivesDir ($archiveName + '.extract')
-        if (Test-Path $tempExtract) { Remove-Item -LiteralPath $tempExtract -Recurse -Force }
-        New-Item -ItemType Directory -Force -Path $tempExtract | Out-Null
-
-        try {
-          # Prefer Expand-Archive for zips; fall back to 7z for rar/other formats if available.
-          try {
-            Expand-Archive -Path $destinationPath -DestinationPath $tempExtract -Force -ErrorAction Stop
-          } catch {
-            $sevenZip = Get-Command 7z -ErrorAction SilentlyContinue
-            if ($sevenZip) {
-              & 7z x -y ("-o{0}" -f $tempExtract) $destinationPath | Out-Null
-            } else {
-              throw $_
-            }
-          }
-
-          $savFiles = Get-ChildItem -Path $tempExtract -Recurse -File -Filter *.sav -ErrorAction SilentlyContinue
-          foreach ($sav in $savFiles) {
-            $dest = Join-Path $fixtureRoot $sav.Name
-            Copy-Item -LiteralPath $sav.FullName -Destination $dest -Force
-            $extraction.files += (Convert-ToRelativePath -BasePath $repoRoot -Path $dest)
-          }
-
-          if ($extraction.files.Count -gt 0) {
-            $extraction.success = $true
-          }
-        } catch {
-          $extraction.error = $_.Exception.Message
-        } finally {
-          if (Test-Path $tempExtract) { Remove-Item -LiteralPath $tempExtract -Recurse -Force -ErrorAction SilentlyContinue }
-        }
-      }
-    } catch {
-      # swallow to avoid breaking download flow; record extraction error below
     }
 
     $attempt.Remove('destination')
@@ -243,11 +352,7 @@ try {
     }
 
     # Attach extraction result metadata to the archive attempt
-    if ($null -eq $extraction) {
-      $attempt['extraction'] = [ordered]@{ success = $false; files = @(); error = 'not attempted' }
-    } else {
-      $attempt['extraction'] = $extraction
-    }
+    $attempt['extraction'] = $extraction
 
     $metadata.archiveAttempts += $attempt
   }
@@ -259,6 +364,24 @@ try {
   if ($metadata.archiveAttempts.Where({ -not $_.success }).Count -gt 0) {
     $failed = $metadata.archiveAttempts.Where({ -not $_.success }) | ForEach-Object { $_.archiveUrl }
     throw ('One or more fireemblem.net archive downloads failed: {0}' -f ($failed -join ', '))
+  }
+
+  $failedExtractions = @($metadata.archiveAttempts | Where-Object { $_.success -and $null -ne $_.extraction -and -not $_.extraction.success })
+  if ($failedExtractions.Count -gt 0) {
+    $failed = $failedExtractions | ForEach-Object { '{0}: {1}' -f $_.archiveFileName, $_.extraction.error }
+    throw ('One or more fireemblem.net archive extractions failed: {0}' -f ($failed -join '; '))
+  }
+
+  $fixtureFiles = @(
+    $metadata.archiveAttempts |
+      ForEach-Object {
+        if ($null -ne $_.extraction -and $null -ne $_.extraction.fixtureFiles) {
+          $_.extraction.fixtureFiles
+        }
+      }
+  )
+  if ($fixtureFiles.Count -eq 0) {
+    throw 'No .sav fixtures were extracted from the fireemblem.net archives.'
   }
 } finally {
   $metadataJson = $metadata | ConvertTo-Json -Depth 8

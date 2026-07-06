@@ -1,4 +1,4 @@
-import { readFile, readdir } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
@@ -142,15 +142,72 @@ function buildSpsSave(): File {
 
 const GAMEFAQS_FIXTURE_DIR = resolve(process.cwd(), 'test-saves', 'gamefaqs')
 const FIREEMBLEM_NET_FIXTURE_DIR = resolve(process.cwd(), 'test-saves', 'fireemblem-net')
+type FireEmblemNetArchiveAttempt = {
+  titleCode: string
+  archiveFileName: string
+  mappedGameCode: 'FE6' | 'FE7' | 'FE8' | null
+  extraction?: {
+    success: boolean
+    fixtureFiles?: string[]
+  }
+}
+type FireEmblemNetMetadata = {
+  archiveAttempts: FireEmblemNetArchiveAttempt[]
+}
 const REAL_FIXTURE_CASES = [
   { fileName: 'fe7-10530.sps', expectedGameCode: 'FE7', minimumValidBlocks: 1, expectedGeneralChecksumValid: true },
   { fileName: 'fe8-27399.sps', expectedGameCode: 'FE8', minimumValidBlocks: 1, expectedGeneralChecksumValid: true },
+] as const
+const FIREEMBLEM_NET_REAL_FIXTURE_CASES = [
+  {
+    archiveFileName: 'FE0702.rar',
+    fileName: 'fireemblem-net-fe6-fe0702.sav',
+    expectedGameCode: 'FE6',
+    minimumPresentBlocks: 3,
+    minimumValidBlocks: 0,
+    minimumPlayStateBlocks: 1,
+    expectedGeneralChecksumValid: false,
+  },
+  {
+    archiveFileName: 'FE0801.zip',
+    fileName: 'fireemblem-net-fe7-fe0801.sav',
+    expectedGameCode: 'FE7',
+    minimumPresentBlocks: 1,
+    minimumValidBlocks: 1,
+    minimumPlayStateBlocks: 0,
+    expectedGeneralChecksumValid: true,
+  },
+  {
+    archiveFileName: 'FE0901.rar',
+    fileName: 'fireemblem-net-fe8-fe0901.sav',
+    expectedGameCode: 'FE8',
+    minimumPresentBlocks: 5,
+    minimumValidBlocks: 5,
+    minimumPlayStateBlocks: 5,
+    expectedGeneralChecksumValid: true,
+  },
 ] as const
 
 async function readFixtureFile(fileName: string): Promise<File> {
   const fixturePath = resolve(GAMEFAQS_FIXTURE_DIR, fileName)
   const bytes = await readFile(fixturePath)
   return new File([bytes], fileName, { type: 'application/octet-stream' })
+}
+
+async function readFireEmblemNetFixture(fileName: string): Promise<File> {
+  const fixturePath = resolve(FIREEMBLEM_NET_FIXTURE_DIR, fileName)
+  const bytes = await readFile(fixturePath)
+  return new File([bytes], fileName, { type: 'application/octet-stream' })
+}
+
+async function readFireEmblemNetMetadata(): Promise<FireEmblemNetMetadata> {
+  return JSON.parse(
+    await readFile(resolve(FIREEMBLEM_NET_FIXTURE_DIR, 'sources', 'download-metadata.json'), 'utf8'),
+  ) as FireEmblemNetMetadata
+}
+
+function normalizeRelativePath(path: string): string {
+  return path.replaceAll('\\', '/')
 }
 
 describe('saveCodec', () => {
@@ -160,15 +217,22 @@ describe('saveCodec', () => {
   })
 
   it('has fireemblem.net metadata file with at least one FE07/08/09 archive attempt', async () => {
-    const metadata = JSON.parse(
-      await readFile(resolve(FIREEMBLEM_NET_FIXTURE_DIR, 'sources', 'download-metadata.json'), 'utf8'),
-    )
+    const metadata = await readFireEmblemNetMetadata()
     expect(metadata.archiveAttempts.some((x: { titleCode: string }) => /^FE0[789]/.test(x.titleCode))).toBe(true)
   })
 
-  it('includes extracted fireemblem.net .sav fixtures', async () => {
-    const files = await readdir(resolve(FIREEMBLEM_NET_FIXTURE_DIR))
-    expect(files.some((name) => name.toLowerCase().endsWith('.sav'))).toBe(true)
+  it('records real extracted fireemblem.net fixtures in metadata', async () => {
+    const metadata = await readFireEmblemNetMetadata()
+
+    for (const fixture of FIREEMBLEM_NET_REAL_FIXTURE_CASES) {
+      const attempt = metadata.archiveAttempts.find((candidate) => candidate.archiveFileName === fixture.archiveFileName)
+
+      expect(attempt?.mappedGameCode).toBe(fixture.expectedGameCode)
+      expect(attempt?.extraction?.success).toBe(true)
+      expect(
+        attempt?.extraction?.fixtureFiles?.map((path) => normalizeRelativePath(path)),
+      ).toContain(`test-saves/fireemblem-net/${fixture.fileName}`)
+    }
   })
 
   it('normalizes .sps containers to raw save bytes', () => {
@@ -213,6 +277,28 @@ describe('saveCodec', () => {
       expect(parsed.generalChecksumValid).toBeTypeOf('boolean')
     }
     expect(parsed.blocks.some((block) => block.offset > 0 && block.size > 0)).toBe(true)
+    expect(parsed.blocks.filter((block) => block.checksumValid).length).toBeGreaterThanOrEqual(minimumValidBlocks)
+  })
+
+  it.each(FIREEMBLEM_NET_REAL_FIXTURE_CASES)('loads extracted fireemblem.net fixture $fileName', async ({
+    fileName,
+    expectedGameCode,
+    minimumPresentBlocks,
+    minimumValidBlocks,
+    minimumPlayStateBlocks,
+    expectedGeneralChecksumValid,
+  }) => {
+    const parsed = await parseSaveFile(await readFireEmblemNetFixture(fileName))
+    const presentBlocks = parsed.blocks.filter((block) => block.offset > 0 && block.size > 0)
+    const playStateBlocks = parsed.blocks.filter((block) => block.playState)
+
+    expect(parsed.fileName).toBe(fileName)
+    expect(parsed.gameCode).toBe(expectedGameCode)
+    expect(parsed.bytes.length).toBe(0x10000)
+    expect(parsed.blocks.length).toBe(7)
+    expect(parsed.generalChecksumValid).toBe(expectedGeneralChecksumValid)
+    expect(presentBlocks.length).toBeGreaterThanOrEqual(minimumPresentBlocks)
+    expect(playStateBlocks.length).toBeGreaterThanOrEqual(minimumPlayStateBlocks)
     expect(parsed.blocks.filter((block) => block.checksumValid).length).toBeGreaterThanOrEqual(minimumValidBlocks)
   })
 

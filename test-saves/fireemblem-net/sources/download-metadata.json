@@ -1,5 +1,5 @@
 {
-    "generatedAt":  "2026-07-06T17:19:51.7301448+08:00",
+    "generatedAt":  "2026-07-06T17:33:41.7092802+08:00",
     "sourceUrl":  "http://www.fireemblem.net/fe/download/index.htm",
     "outputRoot":  "C:\\Projects\\FE_GBA_Save_Editor\\test-saves\\fireemblem-net",
     "indexAttempt":  {
@@ -20,7 +20,19 @@
                                 "statusCode":  200,
                                 "error":  null,
                                 "cached":  true,
-                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0701.rar"
+                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0701.rar",
+                                "extraction":  {
+                                                   "archiveFormat":  "rar",
+                                                   "extractor":  "tar",
+                                                   "success":  true,
+                                                   "archiveEntries":  [
+                                                                          "封印之剑4.sgm"
+                                                                      ],
+                                                   "fixtureFiles":  [
+
+                                                                    ],
+                                                   "error":  null
+                                               }
                             },
                             {
                                 "titleCode":  "FE07",
@@ -31,7 +43,19 @@
                                 "statusCode":  200,
                                 "error":  null,
                                 "cached":  true,
-                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0702.rar"
+                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0702.rar",
+                                "extraction":  {
+                                                   "archiveFormat":  "rar",
+                                                   "extractor":  "tar",
+                                                   "success":  true,
+                                                   "archiveEntries":  [
+                                                                          "火炎之纹章之封印之剑.sav"
+                                                                      ],
+                                                   "fixtureFiles":  [
+                                                                        "test-saves\\fireemblem-net\\fireemblem-net-fe6-fe0702.sav"
+                                                                    ],
+                                                   "error":  null
+                                               }
                             },
                             {
                                 "titleCode":  "FE08",
@@ -42,7 +66,19 @@
                                 "statusCode":  200,
                                 "error":  null,
                                 "cached":  true,
-                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0801.zip"
+                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0801.zip",
+                                "extraction":  {
+                                                   "archiveFormat":  "zip",
+                                                   "extractor":  "Expand-Archive",
+                                                   "success":  true,
+                                                   "archiveEntries":  [
+                                                                          "ÁÒ»ðÖ®½£.sav"
+                                                                      ],
+                                                   "fixtureFiles":  [
+                                                                        "test-saves\\fireemblem-net\\fireemblem-net-fe7-fe0801.sav"
+                                                                    ],
+                                                   "error":  null
+                                               }
                             },
                             {
                                 "titleCode":  "FE09",
@@ -53,7 +89,19 @@
                                 "statusCode":  200,
                                 "error":  null,
                                 "cached":  true,
-                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0901.rar"
+                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0901.rar",
+                                "extraction":  {
+                                                   "archiveFormat":  "rar",
+                                                   "extractor":  "tar",
+                                                   "success":  true,
+                                                   "archiveEntries":  [
+                                                                          "fe9.SAV"
+                                                                      ],
+                                                   "fixtureFiles":  [
+                                                                        "test-saves\\fireemblem-net\\fireemblem-net-fe8-fe0901.sav"
+                                                                    ],
+                                                   "error":  null
+                                               }
                             }
                         ]
 }
