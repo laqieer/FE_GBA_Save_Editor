@@ -47,4 +47,22 @@ describe('BlockStructuredTable', () => {
     expect(markup).toContain('Technical field: fe6Units[0].raw_34 (0x0034)')
     expect(markup).not.toContain('field.tech.fe6Units_0_raw_34')
   })
+
+  it('renders page jump and unit selector controls for structured sections', () => {
+    const markup = renderToStaticMarkup(
+      <BlockStructuredTable
+        blockKey="test-block"
+        rows={[
+          makeRow({ key: 'u0', domain: 'units', groupKey: 'units.0', unitIndex: 0 }),
+          makeRow({ key: 'u1', domain: 'units', groupKey: 'units.1', unitIndex: 1 }),
+        ]}
+        onApplyEdit={() => undefined}
+      />,
+    )
+
+    expect(markup).toContain('aria-label="Page"')
+    expect(markup).toContain('Go')
+    expect(markup).toContain('aria-label="Unit"')
+    expect(markup).toContain('placeholder="Jump to unit"')
+  })
 })

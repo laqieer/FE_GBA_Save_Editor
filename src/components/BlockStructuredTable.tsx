@@ -6,10 +6,11 @@ import {
 } from '../lib/editorDraftState'
 import type { FieldRow } from '../lib/structuredEditor'
 import {
-  STRUCTURED_DOMAIN_PAGE_SIZE,
   groupRowsByDomainAndGroup,
-  paginateStructuredRows,
+  STRUCTURED_DOMAIN_PAGE_SIZE,
+  paginateStructuredSection,
 } from '../lib/structuredTableLayout'
+import { findUnitPageByIndex, parsePageJump } from '../lib/structuredNavigation'
 
 type BlockStructuredTableProps = {
   blockKey: string
@@ -72,7 +73,10 @@ export function BlockStructuredTable({
   })
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
   const [domainPages, setDomainPages] = useState<Record<string, number>>({})
+  const [pageJumpInputs, setPageJumpInputs] = useState<Record<string, string>>({})
+  const [unitJumpInputs, setUnitJumpInputs] = useState<Record<string, string>>({})
   const previousLayoutBlockKey = useRef(blockKey)
+  const previousNavigationBlockKey = useRef(blockKey)
 
   useEffect(() => {
     setState((current) => {
@@ -126,6 +130,15 @@ export function BlockStructuredTable({
     previousLayoutBlockKey.current = blockKey
   }, [blockKey, groupedRows, groups])
 
+  useEffect(() => {
+    const preserveNavigationState = previousNavigationBlockKey.current === blockKey
+    if (!preserveNavigationState) {
+      setPageJumpInputs({})
+      setUnitJumpInputs({})
+    }
+    previousNavigationBlockKey.current = blockKey
+  }, [blockKey])
+
   function clearError(rowKey: string) {
     setState((current) => {
       if (!(rowKey in current.errors)) {
@@ -138,6 +151,28 @@ export function BlockStructuredTable({
         errors: next,
       }
     })
+  }
+
+  function setSectionPage(sectionId: string, nextPage: number) {
+    const nextValue = String(nextPage + 1)
+    setDomainPages((current) => ({
+      ...current,
+      [sectionId]: nextPage,
+    }))
+    setPageJumpInputs((current) => ({
+      ...current,
+      [sectionId]: nextValue,
+    }))
+    setUnitJumpInputs((current) => ({
+      ...current,
+      [sectionId]: nextValue,
+    }))
+  }
+
+  function applyPageJump(sectionId: string, totalPages: number) {
+    const parsed = parsePageJump(pageJumpInputs[sectionId] ?? '', totalPages)
+    if (parsed === null) return
+    setSectionPage(sectionId, parsed)
   }
 
   function applyRow(rowKey: string) {
@@ -215,14 +250,10 @@ export function BlockStructuredTable({
       {groupedRows.map((section) => (
         <section className="structured-domain-section" key={section.id}>
           {(() => {
-            const page = paginateStructuredRows(
-              section.rows,
-              domainPages[section.id] ?? 0,
+            const page = paginateStructuredSection(section, domainPages[section.id] ?? 0)
+            const visibleGroups = section.groups.filter((group) =>
+              page.visibleGroupIds.includes(group.id),
             )
-            const visibleGroups =
-              groupRowsByDomainAndGroup(page.rows).find(
-                (candidate) => candidate.id === section.id,
-              )?.groups ?? []
 
             return (
               <>
@@ -244,14 +275,37 @@ export function BlockStructuredTable({
 
                   {page.totalPages > 1 && (
                     <div className="structured-group-controls">
+                      <label className="structured-page-jump">
+                        <input
+                          aria-label={t('structuredEditor.pageInputLabel')}
+                          inputMode="numeric"
+                          spellCheck={false}
+                          value={pageJumpInputs[section.id] ?? String(page.currentPage + 1)}
+                          onChange={(event) =>
+                            setPageJumpInputs((current) => ({
+                              ...current,
+                              [section.id]: event.target.value,
+                            }))
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault()
+                              applyPageJump(section.id, page.totalPages)
+                            }
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => applyPageJump(section.id, page.totalPages)}
+                      >
+                        {t('structuredEditor.goToPage')}
+                      </button>
                       <button
                         type="button"
                         disabled={page.currentPage === 0}
                         onClick={() =>
-                          setDomainPages((current) => ({
-                            ...current,
-                            [section.id]: Math.max(0, page.currentPage - 1),
-                          }))
+                          setSectionPage(section.id, Math.max(0, page.currentPage - 1))
                         }
                       >
                         {t('previous')}
@@ -267,17 +321,54 @@ export function BlockStructuredTable({
                         type="button"
                         disabled={page.currentPage >= page.totalPages - 1}
                         onClick={() =>
-                          setDomainPages((current) => ({
-                            ...current,
-                            [section.id]: Math.min(
-                              page.totalPages - 1,
-                              page.currentPage + 1,
-                            ),
-                          }))
+                          setSectionPage(
+                            section.id,
+                            Math.min(page.totalPages - 1, page.currentPage + 1),
+                          )
                         }
                       >
                         {t('next')}
                       </button>
+                    </div>
+                  )}
+                  {section.domain === 'units' && (
+                    <div className="structured-group-controls">
+                      <label className="structured-unit-jump">
+                        <input
+                          aria-label={t('structuredEditor.unitSelector')}
+                          list={`unit-options-${section.id}`}
+                          placeholder={t('structuredEditor.unitSelectorPlaceholder')}
+                          spellCheck={false}
+                          value={unitJumpInputs[section.id] ?? String(page.currentPage + 1)}
+                          onChange={(event) => {
+                            const nextValue = event.target.value
+                            setUnitJumpInputs((current) => ({
+                              ...current,
+                              [section.id]: nextValue,
+                            }))
+
+                            const parsed = parsePageJump(nextValue, section.groups.length)
+                            if (parsed === null) return
+
+                            const unitPage = findUnitPageByIndex(section, parsed)
+                            if (unitPage === null) return
+
+                            setSectionPage(section.id, unitPage)
+                          }}
+                        />
+                      </label>
+                      <datalist id={`unit-options-${section.id}`}>
+                        {section.groups.map((group, index) => (
+                          <option
+                            key={group.id}
+                            value={String(index + 1)}
+                            label={t(group.title.labelKey, {
+                              ...group.title.options,
+                              defaultValue: group.title.defaultLabel,
+                            })}
+                          />
+                        ))}
+                      </datalist>
                     </div>
                   )}
                 </div>
