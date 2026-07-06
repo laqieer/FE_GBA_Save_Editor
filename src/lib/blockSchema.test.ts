@@ -34,18 +34,29 @@ describe('blockSchema', () => {
     )
 
     expect(fe6CharacterId?.bitOffset).toBeDefined()
-    expect(fe7CharacterId?.bitOffset).toBeDefined()
+    expect(fe7CharacterId?.bitOffset).toBeUndefined()
     expect(fe8CharacterId?.bitOffset).toBeUndefined()
+    expect(fe7CharacterId?.offset).toBe(0x5c)
     expect(fe8CharacterId?.offset).toBe(0x60)
   })
 
-  it('uses FE6-specific game-save offset baseline and omits FE7/FE8-only play-state fields', () => {
+  it('uses title-specific game-save offset baseline and omits FE7/FE8-only FE6 play-state fields', () => {
     const fe6Fields = getBlockSchema('FE6', 0)
     const fe7Fields = getBlockSchema('FE7', 0)
+    const fe8Fields = getBlockSchema('FE8', 0)
 
     expect(fe6Fields.find((field) => field.memberPath === 'units[0].characterId')?.offset).toBe(0x20)
-    expect(fe7Fields.find((field) => field.memberPath === 'units[0].characterId')?.offset).toBe(0x4c)
+    expect(fe7Fields.find((field) => field.memberPath === 'units[0].characterId')?.offset).toBe(0x5c)
+    expect(fe8Fields.find((field) => field.memberPath === 'units[0].characterId')?.offset).toBe(0x60)
     expect(fe6Fields.some((field) => field.memberPath === 'playerName')).toBe(false)
     expect(fe7Fields.some((field) => field.memberPath === 'playerName')).toBe(true)
+  })
+
+  it('uses FE7 13-bit unit stateFlags encoding', () => {
+    const stateFlags = getBlockSchema('FE7', 0).find(
+      (field) => field.memberPath === 'units[0].stateFlags',
+    )
+
+    expect(stateFlags?.bitLength).toBe(13)
   })
 })

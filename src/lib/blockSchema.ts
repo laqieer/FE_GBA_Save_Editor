@@ -210,16 +210,16 @@ const FE6_LAYOUT: UnitLayout = {
 }
 
 const FE7_LAYOUT: UnitLayout = {
-  playStSize: 0x4c,
+  playStSize: 0x48,
   playStateFields: FE7_FE8_PLAYST_FIELD_SCHEMA,
   unitCount: 52,
   hasGmUnitBeforeSupply: false,
   convoyItemCount: 100,
   convoyEncoding: 'u16Packed',
-  packedFields: FE6_FE7_PACKED_FIELDS,
-  characterIdField: { kind: 'bit', labelKey: 'field.unit.characterId', memberPath: 'characterId', bitLength: 7 },
-  weaponRankOffset: 0x16,
-  supportOffset: 0x1e,
+  packedFields: FE8_PACKED_FIELDS,
+  characterIdField: { kind: 'byte', labelKey: 'field.unit.characterId', memberPath: 'characterId', byteOffset: 0x14 },
+  weaponRankOffset: 0x15,
+  supportOffset: 0x1d,
 }
 
 const FE8_LAYOUT: UnitLayout = {
