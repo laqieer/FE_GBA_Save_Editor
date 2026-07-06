@@ -17,3 +17,12 @@ Notes / concerns:
 - Download filename logic still replaces only .sav; if preserving .sps on download is desired, that should be adjusted.
 
 Report generated at: .superpowers/sdd/sps-task-1-report.md
+
+---
+
+Additional update (2026-07-06T11:52:xx):
+- Updated i18n strings in src/i18n.ts to mention supported extensions ".sav/.sps" for upload and invalid file messages in en/ja/zh.
+- Ran full test suite: 11 files, 42 tests — ALL PASS.
+- Commit: 279e63f (i18n: support .sav/.sps in upload and invalid file messages) Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+
+No concerns.
