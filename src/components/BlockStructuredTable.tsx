@@ -7,7 +7,6 @@ import {
 import type { FieldRow } from '../lib/structuredEditor'
 import {
   groupRowsByDomainAndGroup,
-  STRUCTURED_DOMAIN_PAGE_SIZE,
   paginateStructuredSection,
   type StructuredDomainSection,
 } from '../lib/structuredTableLayout'
@@ -206,11 +205,8 @@ export function BlockStructuredTable({
       const next: Record<string, number> = {}
       for (const section of groupedRows) {
         const currentPage = preserveGroupState ? current[section.id] ?? 0 : 0
-        const lastPage = Math.max(
-          0,
-          Math.ceil(section.rows.length / STRUCTURED_DOMAIN_PAGE_SIZE) - 1,
-        )
-        next[section.id] = Math.min(Math.max(0, currentPage), lastPage)
+        const page = paginateStructuredSection(section, currentPage)
+        next[section.id] = page.currentPage
       }
       return next
     })
@@ -461,25 +457,22 @@ export function BlockStructuredTable({
                 </div>
 
                 {visibleGroups.map((group) => {
-                  const fullGroup =
-                    section.groups.find((candidate) => candidate.id === group.id) ?? group
-                  const isCollapsed =
-                    collapsedGroups[group.id] ?? fullGroup.defaultCollapsed
+                  const isCollapsed = collapsedGroups[group.id] ?? group.defaultCollapsed
 
                   return (
                     <section className="structured-group" key={group.id}>
                       <div className="structured-group-header">
                         <div className="structured-group-copy">
                           <h4 className="structured-group-title">
-                            {t(fullGroup.title.labelKey, {
-                              ...fullGroup.title.options,
-                              defaultValue: fullGroup.title.defaultLabel,
+                            {t(group.title.labelKey, {
+                              ...group.title.options,
+                              defaultValue: group.title.defaultLabel,
                             })}
                           </h4>
                           <p className="structured-group-meta">
                             {t('structuredEditor.fieldCount', {
-                              count: fullGroup.rows.length,
-                              defaultValue: `${fullGroup.rows.length} fields`,
+                              count: group.rows.length,
+                              defaultValue: `${group.rows.length} fields`,
                             })}
                           </p>
                         </div>
