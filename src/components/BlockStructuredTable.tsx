@@ -224,19 +224,23 @@ export function BlockStructuredTable({
     }
     setDomainPages(nextDomainPages)
     setPageJumpInputs((current) => {
-      const next = { ...current }
+      const next = preserveGroupState ? { ...current } : {}
       for (const section of groupedRows) {
-        next[section.id] = String(nextDomainPages[section.id] + 1)
+        if (!preserveGroupState || !(section.id in current)) {
+          next[section.id] = String(nextDomainPages[section.id] + 1)
+        }
       }
       return next
     })
     setUnitJumpInputs((current) => {
-      const next = { ...current }
+      const next = preserveGroupState ? { ...current } : {}
       for (const section of groupedRows) {
         if (section.domain !== 'units') {
           continue
         }
-        next[section.id] = getUnitSelectorValue(section, nextDomainPages[section.id], t)
+        if (!preserveGroupState || !(section.id in current)) {
+          next[section.id] = getUnitSelectorValue(section, nextDomainPages[section.id], t)
+        }
       }
       return next
     })

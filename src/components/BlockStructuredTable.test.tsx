@@ -2,7 +2,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '../i18n'
 import type { FieldRow } from '../lib/structuredEditor'
 import { groupRowsByDomainAndGroup, paginateStructuredSection } from '../lib/structuredTableLayout'
@@ -56,7 +56,11 @@ type MountedTable = {
   unmount: () => Promise<void>
 }
 
-async function mountTable(blockKey: string, rows: FieldRow[]): Promise<MountedTable> {
+async function mountTable(
+  blockKey: string,
+  rows: FieldRow[],
+  onApplyEdit: (rowKey: string, nextValue: string) => void = () => undefined,
+): Promise<MountedTable> {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
@@ -66,7 +70,7 @@ async function mountTable(blockKey: string, rows: FieldRow[]): Promise<MountedTa
       <BlockStructuredTable
         blockKey={nextBlockKey}
         rows={nextRows}
-        onApplyEdit={() => undefined}
+        onApplyEdit={onApplyEdit}
       />,
     )
   }
@@ -103,6 +107,22 @@ function getUnitInput(container: HTMLElement): HTMLInputElement {
 function getPageStatus(container: HTMLElement): string {
   const status = container.querySelector('.structured-group-page-status')
   return status?.textContent ?? ''
+}
+
+function getPageInput(container: HTMLElement): HTMLInputElement {
+  const input = container.querySelector('.structured-page-jump input')
+  if (!(input instanceof HTMLInputElement)) {
+    throw new Error('Page selector input not found')
+  }
+  return input
+}
+
+function getFieldInput(container: HTMLElement): HTMLInputElement {
+  const input = container.querySelector('.field-input')
+  if (!(input instanceof HTMLInputElement)) {
+    throw new Error('Field input not found')
+  }
+  return input
 }
 
 async function setInputValue(input: HTMLInputElement, value: string) {
@@ -208,6 +228,126 @@ describe('BlockStructuredTable', () => {
     expect(getUnitInput(mounted.container).value).toBe('Unit 1')
   })
 
+  it('preserves in-progress jump inputs across same-block rerenders', async () => {
+    mounted = await mountTable('block-a', [
+      ...Array.from({ length: 31 }, (_, index) =>
+        makeRow({
+          key: `playst.${index}`,
+          domain: 'playState',
+          groupKey: 'playst',
+          memberPath: `playst.${index}`,
+          offset: index,
+        }),
+      ),
+      ...Array.from({ length: 5 }, (_, index) =>
+        makeRow({
+          key: `chapter.${index}`,
+          domain: 'playState',
+          groupKey: 'chapter',
+          memberPath: `chapter.${index}`,
+          offset: 31 + index,
+        }),
+      ),
+      ...makeUnitRows(),
+    ])
+
+    await setInputValue(getPageInput(mounted.container), '2')
+    await setInputValue(getUnitInput(mounted.container), 'Unit')
+
+    await mounted.rerender('block-a', [
+      ...Array.from({ length: 31 }, (_, index) =>
+        makeRow({
+          key: `playst.${index}`,
+          domain: 'playState',
+          groupKey: 'playst',
+          memberPath: `playst.${index}`,
+          offset: index,
+        }),
+      ),
+      ...Array.from({ length: 5 }, (_, index) =>
+        makeRow({
+          key: `chapter.${index}`,
+          domain: 'playState',
+          groupKey: 'chapter',
+          memberPath: `chapter.${index}`,
+          offset: 31 + index,
+        }),
+      ),
+      ...makeUnitRows(),
+    ])
+
+    expect(getPageInput(mounted.container).value).toBe('2')
+    expect(getUnitInput(mounted.container).value).toBe('Unit')
+  })
+
+  it('keeps draft and error state when navigating away and back within the same block', async () => {
+    const onApplyEdit = vi.fn((rowKey: string, nextValue: string) => {
+      if (rowKey === 'playst.0' && nextValue === 'bad') {
+        throw new Error('structuredEditor.outOfRange')
+      }
+    })
+    mounted = await mountTable(
+      'block-a',
+      [
+        ...Array.from({ length: 31 }, (_, index) =>
+          makeRow({
+            key: `playst.${index}`,
+            domain: 'playState',
+            groupKey: 'playst',
+            memberPath: `playst.${index}`,
+            offset: index,
+          }),
+        ),
+        ...Array.from({ length: 5 }, (_, index) =>
+          makeRow({
+            key: `chapter.${index}`,
+            domain: 'playState',
+            groupKey: 'chapter',
+            memberPath: `chapter.${index}`,
+            offset: 31 + index,
+          }),
+        ),
+      ],
+      onApplyEdit,
+    )
+
+    const fieldInput = getFieldInput(mounted.container)
+    await setInputValue(fieldInput, 'bad')
+    await act(async () => {
+      fieldInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+
+    expect(mounted.container.querySelector('.inline-error')?.textContent).toBe(
+      'Value is outside the valid range for this field.',
+    )
+
+    const nextButton = Array.from(mounted.container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Next',
+    )
+    const previousButton = Array.from(mounted.container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Previous',
+    )
+
+    expect(nextButton).toBeDefined()
+    expect(previousButton).toBeDefined()
+    if (!nextButton || !previousButton) return
+
+    await act(async () => {
+      nextButton.click()
+    })
+    expect(getPageStatus(mounted.container)).toContain('2 / 2')
+
+    await act(async () => {
+      previousButton.click()
+    })
+
+    expect(getPageStatus(mounted.container)).toContain('1 / 2')
+    expect(getFieldInput(mounted.container).value).toBe('bad')
+    expect(mounted.container.querySelector('.inline-error')?.textContent).toBe(
+      'Value is outside the valid range for this field.',
+    )
+  })
+
   it('does not jump to Unit 1 when the selector text is partial or the locale changes', async () => {
     mounted = await mountTable('block-a', makeUnitRows())
 
@@ -224,7 +364,7 @@ describe('BlockStructuredTable', () => {
     })
 
     expect(getPageStatus(mounted.container)).toContain('2 / 2')
-    expect(getUnitInput(mounted.container).value).toBe('ユニット 2')
+    expect(getUnitInput(mounted.container).value).toBe('Unit')
   })
 
   it('goes to the requested page and rejects invalid page input', () => {
