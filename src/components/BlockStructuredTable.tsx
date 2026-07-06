@@ -9,6 +9,7 @@ import {
   groupRowsByDomainAndGroup,
   STRUCTURED_DOMAIN_PAGE_SIZE,
   paginateStructuredSection,
+  type StructuredDomainSection,
 } from '../lib/structuredTableLayout'
 import { findUnitPageByIndex, parsePageJump } from '../lib/structuredNavigation'
 
@@ -16,6 +17,15 @@ type BlockStructuredTableProps = {
   blockKey: string
   rows: FieldRow[]
   onApplyEdit: (rowKey: string, nextValue: string) => void
+}
+
+type Translate = (key: string, options?: Record<string, unknown>) => string
+
+export type UnitSelectorOption = {
+  pageIndex: number
+  value: string
+  label: string
+  searchText: string
 }
 
 function formatRowValue(value: number | string): string {
@@ -35,13 +45,82 @@ function formatTypeLabel(type: FieldRow['type']): string {
 }
 
 function toTranslatedError(
-  t: (key: string, options?: Record<string, unknown>) => string,
+  t: Translate,
   error: unknown,
 ): string {
   if (error instanceof Error) {
     return t(error.message, { defaultValue: error.message })
   }
   return t('editorUnknownError')
+}
+
+function normalizeSelectorText(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function translateGroupTitle(t: Translate, group: StructuredDomainSection['groups'][number]): string {
+  return t(group.title.labelKey, {
+    ...group.title.options,
+    defaultValue: group.title.defaultLabel,
+  })
+}
+
+export function buildUnitSelectorOptions(
+  section: StructuredDomainSection,
+  t: Translate,
+): UnitSelectorOption[] {
+  if (section.domain !== 'units') return []
+
+  return section.groups.map((group, index) => {
+    const translatedTitle = translateGroupTitle(t, group)
+    const value = translatedTitle
+    const label = `#${index + 1}`
+    const searchText = normalizeSelectorText(
+      [value, label, String(index + 1), group.groupKey, group.title.defaultLabel]
+        .filter((part) => part.length > 0)
+        .join(' '),
+    )
+
+    return {
+      pageIndex: index,
+      value,
+      label,
+      searchText,
+    }
+  })
+}
+
+export function resolveUnitSelectorPage(
+  section: StructuredDomainSection,
+  input: string,
+  options: readonly UnitSelectorOption[],
+): number | null {
+  const trimmed = input.trim()
+  if (!trimmed) return null
+
+  const numericPage = parsePageJump(trimmed, section.groups.length)
+  if (numericPage !== null) {
+    return findUnitPageByIndex(section, numericPage)
+  }
+
+  const normalized = normalizeSelectorText(trimmed)
+  const exactMatch = options.find(
+    (option) =>
+      option.searchText === normalized || normalizeSelectorText(option.value) === normalized,
+  )
+  if (exactMatch) return exactMatch.pageIndex
+
+  const prefixMatches = options.filter((option) => option.searchText.startsWith(normalized))
+  return prefixMatches.length === 1 ? prefixMatches[0].pageIndex : null
+}
+
+function getUnitSelectorValue(
+  section: StructuredDomainSection,
+  pageIndex: number,
+  t: Translate,
+): string {
+  const group = section.groups[pageIndex]
+  return group ? translateGroupTitle(t, group) : String(pageIndex + 1)
 }
 
 export function BlockStructuredTable({
@@ -54,6 +133,15 @@ export function BlockStructuredTable({
   const groups = useMemo(
     () => groupedRows.flatMap((section) => section.groups),
     [groupedRows],
+  )
+  const unitSelectorOptionsBySection = useMemo(
+    () =>
+      new Map(
+        groupedRows
+          .filter((section) => section.domain === 'units')
+          .map((section) => [section.id, buildUnitSelectorOptions(section, t)]),
+      ),
+    [groupedRows, t],
   )
   const canonicalValues = useMemo(
     () =>
@@ -153,26 +241,29 @@ export function BlockStructuredTable({
     })
   }
 
-  function setSectionPage(sectionId: string, nextPage: number) {
+  function setSectionPage(section: StructuredDomainSection, nextPage: number) {
     const nextValue = String(nextPage + 1)
     setDomainPages((current) => ({
       ...current,
-      [sectionId]: nextPage,
+      [section.id]: nextPage,
     }))
     setPageJumpInputs((current) => ({
       ...current,
-      [sectionId]: nextValue,
+      [section.id]: nextValue,
     }))
     setUnitJumpInputs((current) => ({
       ...current,
-      [sectionId]: nextValue,
+      [section.id]:
+        section.domain === 'units'
+          ? getUnitSelectorValue(section, nextPage, t)
+          : nextValue,
     }))
   }
 
-  function applyPageJump(sectionId: string, totalPages: number) {
-    const parsed = parsePageJump(pageJumpInputs[sectionId] ?? '', totalPages)
+  function applyPageJump(section: StructuredDomainSection, totalPages: number) {
+    const parsed = parsePageJump(pageJumpInputs[section.id] ?? '', totalPages)
     if (parsed === null) return
-    setSectionPage(sectionId, parsed)
+    setSectionPage(section, parsed)
   }
 
   function applyRow(rowKey: string) {
@@ -290,23 +381,21 @@ export function BlockStructuredTable({
                           onKeyDown={(event) => {
                             if (event.key === 'Enter') {
                               event.preventDefault()
-                              applyPageJump(section.id, page.totalPages)
+                              applyPageJump(section, page.totalPages)
                             }
                           }}
                         />
                       </label>
                       <button
                         type="button"
-                        onClick={() => applyPageJump(section.id, page.totalPages)}
+                        onClick={() => applyPageJump(section, page.totalPages)}
                       >
                         {t('structuredEditor.goToPage')}
                       </button>
                       <button
                         type="button"
                         disabled={page.currentPage === 0}
-                        onClick={() =>
-                          setSectionPage(section.id, Math.max(0, page.currentPage - 1))
-                        }
+                        onClick={() => setSectionPage(section, Math.max(0, page.currentPage - 1))}
                       >
                         {t('previous')}
                       </button>
@@ -321,10 +410,7 @@ export function BlockStructuredTable({
                         type="button"
                         disabled={page.currentPage >= page.totalPages - 1}
                         onClick={() =>
-                          setSectionPage(
-                            section.id,
-                            Math.min(page.totalPages - 1, page.currentPage + 1),
-                          )
+                          setSectionPage(section, Math.min(page.totalPages - 1, page.currentPage + 1))
                         }
                       >
                         {t('next')}
@@ -339,7 +425,10 @@ export function BlockStructuredTable({
                           list={`unit-options-${section.id}`}
                           placeholder={t('structuredEditor.unitSelectorPlaceholder')}
                           spellCheck={false}
-                          value={unitJumpInputs[section.id] ?? String(page.currentPage + 1)}
+                          value={
+                            unitJumpInputs[section.id] ??
+                            getUnitSelectorValue(section, page.currentPage, t)
+                          }
                           onChange={(event) => {
                             const nextValue = event.target.value
                             setUnitJumpInputs((current) => ({
@@ -347,25 +436,23 @@ export function BlockStructuredTable({
                               [section.id]: nextValue,
                             }))
 
-                            const parsed = parsePageJump(nextValue, section.groups.length)
-                            if (parsed === null) return
-
-                            const unitPage = findUnitPageByIndex(section, parsed)
+                            const unitPage = resolveUnitSelectorPage(
+                              section,
+                              nextValue,
+                              unitSelectorOptionsBySection.get(section.id) ?? [],
+                            )
                             if (unitPage === null) return
 
-                            setSectionPage(section.id, unitPage)
+                            setSectionPage(section, unitPage)
                           }}
                         />
                       </label>
                       <datalist id={`unit-options-${section.id}`}>
-                        {section.groups.map((group, index) => (
+                        {(unitSelectorOptionsBySection.get(section.id) ?? []).map((option) => (
                           <option
-                            key={group.id}
-                            value={String(index + 1)}
-                            label={t(group.title.labelKey, {
-                              ...group.title.options,
-                              defaultValue: group.title.defaultLabel,
-                            })}
+                            key={section.groups[option.pageIndex]?.id ?? option.value}
+                            value={option.value}
+                            label={option.label}
                           />
                         ))}
                       </datalist>
