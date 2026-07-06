@@ -107,7 +107,8 @@ function writeFixedString(bytes: Uint8Array, offset: number, size: number, value
 function computeSharkPortChecksum(bytes: Uint8Array): number {
   let checksum = 0
   for (let i = 0; i < bytes.length; i += 1) {
-    checksum = (checksum + (bytes[i] << (checksum % 24))) >>> 0
+    const signedByte = (bytes[i] << 24) >> 24
+    checksum = (checksum + (signedByte << (checksum % 24))) >>> 0
   }
   return checksum >>> 0
 }

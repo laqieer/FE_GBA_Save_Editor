@@ -1,0 +1,107 @@
+﻿{
+    "generatedAt":  "2026-07-06T12:57:47.6526733+08:00",
+    "repoRoot":  "C:\\Projects\\FE_GBA_Save_Editor\\",
+    "outputRoot":  "C:\\Projects\\FE_GBA_Save_Editor\\test-saves\\gamefaqs",
+    "gameFaqsPageAttempts":  [
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/gba/563015-fire-emblem-fuuin-no-tsurugi/saves",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "evidenceFile":  null,
+                                     "key":  "fe6",
+                                     "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                     "blocked":  true
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/gba/468480-fire-emblem/saves",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "evidenceFile":  null,
+                                     "key":  "fe7",
+                                     "game":  "Fire Emblem",
+                                     "blocked":  true
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/gba/921183-fire-emblem-the-sacred-stones/saves",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "evidenceFile":  null,
+                                     "key":  "fe8",
+                                     "game":  "Fire Emblem: The Sacred Stones",
+                                     "blocked":  true
+                                 }
+                             ],
+    "gameFaqsFileAttempts":  [
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/17515",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe6",
+                                     "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                     "archiveId":  "17515",
+                                     "fileName":  "fe6-17515.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/10530",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe7",
+                                     "game":  "Fire Emblem",
+                                     "archiveId":  "10530",
+                                     "fileName":  "fe7-10530.sps"
+                                 },
+                                 {
+                                     "uri":  "https://gamefaqs.gamespot.com/a/saves/27399",
+                                     "success":  false,
+                                     "statusCode":  403,
+                                     "error":  "The remote server returned an error: (403) Forbidden.",
+                                     "key":  "fe8",
+                                     "game":  "Fire Emblem: The Sacred Stones",
+                                     "archiveId":  "27399",
+                                     "fileName":  "fe8-27399.sps"
+                                 }
+                             ],
+    "archiveFallbackAttempts":  [
+
+                                ],
+    "fallbackFixtures":  [
+                             {
+                                 "key":  "fe6",
+                                 "game":  "Fire Emblem: Fuuin no Tsurugi",
+                                 "archiveId":  "17515",
+                                 "fileName":  "fe6-17515.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe6-17515.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Fuuin%20no%20Tsurugi%2Fgameboy-advance-gameshark-save-japan%2F17515.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe6-archive-description.txt",
+                                 "descriptionEntry":  "17515\r\nFrom zeldafreak007 (07/24/2008; 64KB)\r\nAll battle maps, all secret characters, One save on Beyond the Darkness and 2 other on Chapter 22"
+                             },
+                             {
+                                 "key":  "fe7",
+                                 "game":  "Fire Emblem",
+                                 "archiveId":  "10530",
+                                 "fileName":  "fe7-10530.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe7-10530.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem%2Fgameboy-advance-gameshark-save-north-america%2F10530.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe7-archive-description.txt",
+                                 "descriptionEntry":  "10530\r\nFrom Wachon (01/09/2006; 64KB)\r\nFire Emblem Save with all the characters and all the modes unlocked"
+                             },
+                             {
+                                 "key":  "fe8",
+                                 "game":  "Fire Emblem: The Sacred Stones",
+                                 "archiveId":  "27399",
+                                 "fileName":  "fe8-27399.sps",
+                                 "relativePath":  "test-saves\\gamefaqs\\fe8-27399.sps",
+                                 "sourceUrl":  "https://archive.org/download/gamefaqs_savegames/gba_savegames.zip/Fire%20Emblem_%20Seima%20no%20Kouseki%2Fgameboy-advance-gameshark-save-north-america%2F27399.sps",
+                                 "sourceType":  "archive-fallback",
+                                 "descriptionSource":  "test-saves\\gamefaqs\\sources\\fe8-archive-description.txt",
+                                 "descriptionEntry":  "27399\r\nFrom Memo_rize (01/31/2021; 64KB)\r\nCreature campaign ready file. 250,000+ gold and legendary weapons. All characters base classes, need to get post game characters. 100% support log and sound room. Bonus content enabled in English!!"
+                             }
+                         ]
+}

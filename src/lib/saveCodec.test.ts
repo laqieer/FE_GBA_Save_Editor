@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   SAVE_CODEC_ERROR_KEYS,
@@ -48,7 +50,8 @@ function checksum32(data: Uint8Array): number {
 function sharkPortChecksum(data: Uint8Array): number {
   let checksum = 0
   for (let i = 0; i < data.length; i += 1) {
-    checksum = (checksum + (data[i] << (checksum % 24))) >>> 0
+    const signedByte = (data[i] << 24) >> 24
+    checksum = (checksum + (signedByte << (checksum % 24))) >>> 0
   }
   return checksum >>> 0
 }
@@ -137,6 +140,19 @@ function buildSpsSave(): File {
   )
 }
 
+const GAMEFAQS_FIXTURE_DIR = resolve(process.cwd(), 'test-saves', 'gamefaqs')
+const REAL_FIXTURE_CASES = [
+  { fileName: 'fe6-17515.sps', expectedGameCode: 'FE6', minimumValidBlocks: 0, expectedGeneralChecksumValid: null },
+  { fileName: 'fe7-10530.sps', expectedGameCode: 'FE7', minimumValidBlocks: 1, expectedGeneralChecksumValid: true },
+  { fileName: 'fe8-27399.sps', expectedGameCode: 'FE8', minimumValidBlocks: 1, expectedGeneralChecksumValid: true },
+] as const
+
+async function readFixtureFile(fileName: string): Promise<File> {
+  const fixturePath = resolve(GAMEFAQS_FIXTURE_DIR, fileName)
+  const bytes = await readFile(fixturePath)
+  return new File([bytes], fileName, { type: 'application/octet-stream' })
+}
+
 describe('saveCodec', () => {
   it('normalizes .sps containers to raw save bytes', () => {
     const sram = buildValidSampleSramBytes()
@@ -161,6 +177,26 @@ describe('saveCodec', () => {
     expect(parsed.blocks.length).toBe(7)
     expect(parsed.gameCode).toBe('FE8')
     expect(parsed.blocks[0].playState?.gold).toBe(12345)
+  })
+
+  it.each(REAL_FIXTURE_CASES)('loads real-world GameFAQs fallback fixture $fileName', async ({
+    fileName,
+    expectedGameCode,
+    minimumValidBlocks,
+    expectedGeneralChecksumValid,
+  }) => {
+    const parsed = await parseSaveFile(await readFixtureFile(fileName))
+
+    expect(parsed.fileName).toBe(fileName)
+    expect(parsed.gameCode).toBe(expectedGameCode)
+    expect(parsed.blocks.length).toBe(7)
+    if (expectedGeneralChecksumValid !== null) {
+      expect(parsed.generalChecksumValid).toBe(expectedGeneralChecksumValid)
+    } else {
+      expect(parsed.generalChecksumValid).toBeTypeOf('boolean')
+    }
+    expect(parsed.blocks.some((block) => block.offset > 0 && block.size > 0)).toBe(true)
+    expect(parsed.blocks.filter((block) => block.checksumValid).length).toBeGreaterThanOrEqual(minimumValidBlocks)
   })
 
   it('rejects malformed SPS payload', async () => {

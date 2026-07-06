@@ -1,10 +1,10 @@
 # FE GBA Save Editor
 
-Browser-based save editor for **Fire Emblem 6 / 7 / 8** (`.sav`) with automatic checksum repair and GitHub Pages deployment.
+Browser-based save editor for **Fire Emblem 6 / 7 / 8** (`.sav`, plus GameFAQs/GameShark `.sps`) with automatic checksum repair and GitHub Pages deployment.
 
 ## Features
 
-- Load `.sav` files directly in browser (no server upload)
+- Load `.sav` and GameFAQs/GameShark `.sps` files directly in browser (no server upload)
 - Parse global metadata + 7 save block headers
 - Validate metadata checksum and block checksums
 - Edit every present save block (`#0`-`#6`)
@@ -41,6 +41,14 @@ npm run dev
 npm run test:run
 npm run build
 ```
+
+## Real-world fixture workflow
+
+Deterministic `.sps` regression fixtures live in `test-saves/gamefaqs/`.
+
+- Refresh them with `powershell -ExecutionPolicy Bypass -File .\scripts\tools\download_gamefaqs_saves.ps1 -Force`
+- The script tries the three requested GameFAQs save pages first, then records `403 Forbidden` evidence and falls back to Archive.org's `gba_savegames.zip` mirror when direct access is blocked
+- Provenance, selected fixture notes, and refresh details are documented in `test-saves/gamefaqs/README.md`
 
 ## GitHub Pages
 
