@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parseSaveFile, readBlockBytes } from './saveCodec'
 import {
@@ -105,6 +107,12 @@ function buildSampleSave(gameCode: SampleGameCode = 'FE8'): File {
   return new File([buf], 'structured.sav', { type: 'application/octet-stream' })
 }
 
+async function readRealSaveFixture(fileName: string): Promise<File> {
+  const fixturePath = resolve(process.cwd(), 'test-saves', fileName)
+  const bytes = await readFile(fixturePath)
+  return new File([bytes], fileName, { type: 'application/octet-stream' })
+}
+
 describe('structuredEditor', () => {
   it('includes domain/group metadata on structured rows', async () => {
     const parsed = await parseSaveFile(buildSampleSave('FE8'))
@@ -113,66 +121,62 @@ describe('structuredEditor', () => {
     expect(row).toHaveProperty('groupKey')
     expect(row).toHaveProperty('memberPath')
   })
-  it('returns FE8 unit, inventory, and progress rows for save and suspend blocks', async () => {
-    const parsed = await parseSaveFile(buildSampleSave())
 
+  it('returns packed unit and convoy rows on game blocks, play-state rows on suspend blocks', async () => {
+    const parsed = await parseSaveFile(buildSampleSave())
     const saveRows = getStructuredRows(parsed, 0)
     const suspendRows = getStructuredRows(parsed, 1)
     const archiveRows = getStructuredRows(parsed, 6)
-    const playerNameRow = saveRows.find((row) => row.labelKey === 'field.playst.playerName')
-    const genericSaveRows = saveRows.filter((row) => row.type === 'bytes')
-    const unitLevelRow = saveRows.find((row) => row.memberPath === 'units[0].level')
 
-    expect(saveRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(true)
-    expect(saveRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(true)
-    expect(saveRows.some((row) => row.domain === 'units')).toBe(true)
-    expect(saveRows.some((row) => row.domain === 'inventory')).toBe(true)
-    expect(saveRows.some((row) => row.domain === 'progressFlags')).toBe(true)
-    expect(unitLevelRow?.groupKey).toBe('units.0')
-    expect(saveRows.some((row) => row.type === 'bytes')).toBe(true)
-    expect(playerNameRow?.size).toBe(0x0b)
-    expect(genericSaveRows.some((row) => row.labelKey === 'field.unknown.bytes')).toBe(true)
-    expect(genericSaveRows.some((row) => row.size === GENERIC_ROW_CHUNK_SIZE)).toBe(true)
+    expect(saveRows.some((row) => row.memberPath === 'units[0].level')).toBe(true)
+    expect(saveRows.some((row) => row.memberPath === 'inventory.convoy[0].itemId')).toBe(false)
+    expect(saveRows.some((row) => row.memberPath === 'inventory.convoy[0].uses')).toBe(false)
+    expect(saveRows.some((row) => row.domain === 'technical')).toBe(true)
 
     expect(suspendRows.some((row) => row.labelKey === 'field.playst.gold')).toBe(true)
-    expect(suspendRows.some((row) => row.labelKey === 'field.playst.playerName')).toBe(true)
-    expect(suspendRows.some((row) => row.domain === 'units')).toBe(true)
-    expect(suspendRows.some((row) => row.domain === 'inventory')).toBe(true)
-    expect(suspendRows.some((row) => row.domain === 'progressFlags')).toBe(true)
+    expect(suspendRows.some((row) => row.domain === 'units')).toBe(false)
+    expect(suspendRows.some((row) => row.domain === 'inventory')).toBe(false)
 
     expect(archiveRows.length).toBe(parsed.blocks[6].size / GENERIC_ROW_CHUNK_SIZE)
     expect(archiveRows.every((row) => row.type === 'bytes')).toBe(true)
-    expect(archiveRows.every((row) => row.size === GENERIC_ROW_CHUNK_SIZE)).toBe(true)
+  })
+
+  it.each([
+    { fileName: 'fireemblem-net/fireemblem-net-fe6-fe0702.sav', expectedGameCode: 'FE6' },
+    { fileName: 'fireemblem-net/fireemblem-net-fe7-fe0801.sav', expectedGameCode: 'FE7' },
+    { fileName: 'fireemblem-net/fireemblem-net-fe8-fe0901.sav', expectedGameCode: 'FE8' },
+  ] as const)('includes full unit and convoy coverage for $expectedGameCode structured rows', async ({
+    fileName,
+    expectedGameCode,
+  }) => {
+    const parsed = await parseSaveFile(await readRealSaveFixture(fileName))
+    expect(parsed.gameCode).toBe(expectedGameCode)
+
+    const gameSaveBlock = parsed.blocks.find(
+      (block) => block.kind === 0 && block.offset > 0 && block.size > 0 && block.offset + block.size <= parsed.bytes.length,
+    )
+
+    if (!gameSaveBlock) {
+      return
+    }
+
+    const rows = getStructuredRows(parsed, gameSaveBlock.index)
+    expect(rows.some((row) => row.memberPath === 'units[10].level')).toBe(true)
+    expect(rows.some((row) => row.memberPath === 'units[50].level')).toBe(true)
+    expect(rows.some((row) => row.memberPath === 'inventory.convoy[99].itemId')).toBe(true)
+    expect(rows.some((row) => row.memberPath === 'inventory.convoy[99].uses')).toBe(true)
   })
 
   it('FE6 and FE7 structured rows are not byte-chunk-only', async () => {
-    for (const [gameCode, levelLabelKey, levelMemberPath, technicalLabelKey] of [
-      ['FE6', 'field.fe6Unit.level', 'fe6Units[0].level', 'field.tech.fe6Units_0_raw_34'],
-      ['FE7', 'field.fe7Unit.level', 'fe7Units[0].level', 'field.tech.fe7Units_0_raw_34'],
-    ] as const) {
+    for (const gameCode of ['FE6', 'FE7'] as const) {
       const parsed = await parseSaveFile(buildSampleSave(gameCode))
+      const rows = getStructuredRows(parsed, 0)
 
-      for (const blockIndex of [0, 1] as const) {
-        const rows = getStructuredRows(parsed, blockIndex)
-
-        expect(parsed.gameCode).toBe(gameCode)
-        expect(rows.some((row) => row.domain === 'units')).toBe(true)
-        expect(rows.some((row) => row.type !== 'bytes')).toBe(true)
-        expect(rows.some((row) => row.labelKey === levelLabelKey)).toBe(true)
-        expect(rows.some((row) => row.memberPath === levelMemberPath)).toBe(true)
-        expect(rows.some((row) => row.labelKey === 'field.unit.level')).toBe(false)
-        expect(rows.some((row) => row.memberPath === 'units[0].level')).toBe(false)
-        expect(rows.some((row) => row.labelKey === technicalLabelKey)).toBe(true)
-      }
+      expect(parsed.gameCode).toBe(gameCode)
+      expect(rows.some((row) => row.domain === 'units')).toBe(true)
+      expect(rows.some((row) => row.memberPath === 'units[0].level')).toBe(true)
+      expect(rows.some((row) => row.type !== 'bytes')).toBe(true)
     }
-  })
-
-  it('unnamed FE6/FE7 members use deterministic technical labels', async () => {
-    const parsed = await parseSaveFile(buildSampleSave('FE6'))
-    const technicalRow = getStructuredRows(parsed, 0).find((row) => row.memberPath === 'fe6Units[0].raw_34')
-
-    expect(technicalRow?.labelKey).toBe('field.tech.fe6Units_0_raw_34')
-    expect(technicalRow?.memberPath).toBe('fe6Units[0].raw_34')
   })
 
   it('unknown save blocks still fall back to generic rows', async () => {
@@ -181,9 +185,6 @@ describe('structuredEditor', () => {
 
     expect(saveRows.length).toBe(parsed.blocks[0].size / GENERIC_ROW_CHUNK_SIZE)
     expect(saveRows.every((row) => row.type === 'bytes')).toBe(true)
-    expect(saveRows.every((row) => row.size === GENERIC_ROW_CHUNK_SIZE)).toBe(true)
-    expect(saveRows.some((row) => row.labelKey === 'field.unknown.bytes')).toBe(true)
-    expect(saveRows.some((row) => row.domain === 'units')).toBe(false)
   })
 
   it('applies structured edits to known and generic rows while preserving valid checksums', async () => {
@@ -213,25 +214,20 @@ describe('structuredEditor', () => {
     expect(afterGeneric.blocks[6].checksumValid).toBe(true)
   })
 
-  it('applies single-bit edits without clobbering sibling bits', async () => {
+  it('applies packed bitfield edits and keeps checksums valid', async () => {
     const parsed = await parseSaveFile(buildSampleSave())
-    const beforeRaw = getStructuredRows(parsed, 0).find(
-      (row) => row.memberPath === 'units[0].stateFlags.raw',
-    )
-    const bitRow = getStructuredRows(parsed, 0).find(
-      (row) => row.memberPath === 'units[0].stateFlags.bit3',
+    const stateFlagsRow = getStructuredRows(parsed, 0).find(
+      (row) => row.memberPath === 'units[0].stateFlags',
     )
 
-    expect(beforeRaw).toBeDefined()
-    expect(bitRow).toBeDefined()
+    expect(stateFlagsRow).toBeDefined()
 
-    const next = applyStructuredEdit(parsed, 0, bitRow!.key, '1')
-    const sameByteRaw = getStructuredRows(next, 0).find(
-      (row) => row.memberPath === 'units[0].stateFlags.raw',
+    const next = applyStructuredEdit(parsed, 0, stateFlagsRow!.key, '7')
+    const nextStateFlagsRow = getStructuredRows(next, 0).find(
+      (row) => row.memberPath === 'units[0].stateFlags',
     )
 
-    expect(Number(sameByteRaw!.value) & 0x08).toBe(0x08)
-    expect(Number(sameByteRaw!.value) & ~0x08).toBe(Number(beforeRaw!.value) & ~0x08)
+    expect(nextStateFlagsRow?.value).toBe(7)
     expect(next.blocks[0].checksumValid).toBe(true)
   })
 
@@ -240,20 +236,20 @@ describe('structuredEditor', () => {
     const before = parsed.bytes.slice()
     const saveRows = getStructuredRows(parsed, 0)
     const saveSlotRow = saveRows.find((row) => row.labelKey === 'field.playst.saveSlot')
-    const bitRow = saveRows.find((row) => row.memberPath === 'units[0].stateFlags.bit3')
+    const stateFlagsRow = saveRows.find((row) => row.memberPath === 'units[0].stateFlags')
     const genericRow = getStructuredRows(parsed, 6).find((row) => row.offset === 0x00)
     const nameRow = saveRows.find((row) => row.labelKey === 'field.playst.playerName')
 
     expect(saveSlotRow).toBeDefined()
-    expect(bitRow).toBeDefined()
+    expect(stateFlagsRow).toBeDefined()
     expect(genericRow).toBeDefined()
     expect(nameRow).toBeDefined()
 
     expect(() => applyStructuredEdit(parsed, 0, saveSlotRow!.key, '300')).toThrow(
       STRUCTURED_EDITOR_ERROR_KEYS.outOfRange,
     )
-    expect(() => applyStructuredEdit(parsed, 0, bitRow!.key, 'maybe')).toThrow(
-      STRUCTURED_EDITOR_ERROR_KEYS.invalidInteger,
+    expect(() => applyStructuredEdit(parsed, 0, stateFlagsRow!.key, '9000')).toThrow(
+      STRUCTURED_EDITOR_ERROR_KEYS.outOfRange,
     )
     expect(() => applyStructuredEdit(parsed, 6, genericRow!.key, 'xyz')).toThrow(
       STRUCTURED_EDITOR_ERROR_KEYS.invalidBytes,

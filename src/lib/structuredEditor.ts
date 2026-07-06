@@ -17,6 +17,8 @@ export type FieldRow = {
 
 type ResolvedFieldRow = FieldRow & {
   byteLength: number
+  bitOffset?: number
+  bitLength?: number
 }
 
 export const GENERIC_ROW_CHUNK_SIZE = 16
@@ -65,7 +67,23 @@ function createTechnicalLabel(memberPath: string): string {
   return `field.tech.${memberPath.replace(/[.[\]]+/g, '_').replace(/_+$/, '')}`
 }
 
+function readBitRange(bytes: Uint8Array, bitOffset: number, bitLength: number): number {
+  let value = 0
+  for (let bit = 0; bit < bitLength; bit += 1) {
+    const absoluteBit = bitOffset + bit
+    const byteIndex = absoluteBit >>> 3
+    const bitIndex = absoluteBit & 7
+    const bitValue = (bytes[byteIndex] >>> bitIndex) & 1
+    value |= bitValue << bit
+  }
+  return value >>> 0
+}
+
 function readValue(bytes: Uint8Array, field: BlockFieldSchema): number | string {
+  if (field.bitOffset !== undefined && field.bitLength !== undefined) {
+    return readBitRange(bytes, field.bitOffset, field.bitLength)
+  }
+
   switch (field.type) {
     case 'u8':
       return bytes[field.offset]
@@ -112,6 +130,8 @@ function buildKnownRows(bytes: Uint8Array, fields: readonly BlockFieldSchema[]):
       offset: field.offset,
       size: field.byteLength,
       byteLength: field.byteLength,
+      bitOffset: field.bitOffset,
+      bitLength: field.bitLength,
       type: field.type,
       labelKey: field.labelKey,
       value: readValue(bytes, field),
@@ -232,6 +252,36 @@ function parseNumericPatch(row: ResolvedFieldRow, nextValue: string): Uint8Array
   return patch
 }
 
+function parseBitRangePatch(
+  row: ResolvedFieldRow,
+  nextValue: string,
+  blockBytes: Uint8Array,
+): Uint8Array {
+  if (row.bitOffset === undefined || row.bitLength === undefined || row.bitLength <= 0) {
+    throw new Error(STRUCTURED_EDITOR_ERROR_KEYS.invalidRow)
+  }
+
+  const parsed = parseInteger(nextValue)
+  const maxValue = 2 ** row.bitLength - 1
+  if (parsed < 0 || parsed > maxValue) {
+    throw new Error(STRUCTURED_EDITOR_ERROR_KEYS.outOfRange)
+  }
+
+  const patch = blockBytes.slice(row.offset, row.offset + row.byteLength)
+  const relativeBitOffset = row.bitOffset - row.offset * 8
+
+  for (let bit = 0; bit < row.bitLength; bit += 1) {
+    const absoluteBit = relativeBitOffset + bit
+    const byteIndex = absoluteBit >>> 3
+    const bitIndex = absoluteBit & 7
+    const mask = 1 << bitIndex
+    const bitValue = (parsed >>> bit) & 1
+    patch[byteIndex] = bitValue === 1 ? patch[byteIndex] | mask : patch[byteIndex] & ~mask
+  }
+
+  return patch
+}
+
 function parseBytePatch(row: ResolvedFieldRow, nextValue: string): Uint8Array {
   const normalized = nextValue.trim().replace(/^0x/i, '').replace(/\s+/g, '')
   if (normalized.length !== row.byteLength * 2 || /[^0-9a-f]/i.test(normalized)) {
@@ -294,7 +344,9 @@ export function applyStructuredEdit(
   const blockBytes = readBlockBytes(parsed, blockIndex)
 
   let patch: Uint8Array
-  if (row.bitIndex !== undefined) {
+  if (row.bitOffset !== undefined && row.bitLength !== undefined) {
+    patch = parseBitRangePatch(row, nextValue, blockBytes)
+  } else if (row.bitIndex !== undefined) {
     patch = parseBitPatch(row, nextValue, blockBytes)
   } else {
     switch (row.type) {

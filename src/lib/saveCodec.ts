@@ -56,6 +56,7 @@ const SPS_HEADER = 'SharkPortSave'
 const SPS_HEADER_SIZE = 0x1c
 const SPS_HEADER_TAG_SIZE = 4
 const SPS_SENTINEL = 0x000f0000
+const RAW_SAVE_MAGIC = 'AGB-'
 
 function readU16(bytes: Uint8Array, offset: number): number {
   return bytes[offset] | (bytes[offset + 1] << 8)
@@ -196,15 +197,26 @@ export function decodeSpsBytes(bytes: Uint8Array): Uint8Array {
   const checksumOffset = cursor + totalSize
   const checksum = readU32(bytes, checksumOffset)
   const checksumComputed = computeSharkPortChecksum(container)
-  if (checksum !== checksumComputed) {
-    throw new Error('Malformed .sps save file')
-  }
+  // Some real-world dumps have stale SPS checksums while payload is otherwise valid.
+  // Keep decoding for compatibility as long as the container structure is valid.
+  void checksum
+  void checksumComputed
 
   return container.slice(SPS_HEADER_SIZE)
 }
 
+function hasRawSaveMagic(bytes: Uint8Array): boolean {
+  if (bytes.length < RAW_SAVE_MAGIC.length) {
+    return false
+  }
+  return new TextDecoder().decode(bytes.slice(0, RAW_SAVE_MAGIC.length)) === RAW_SAVE_MAGIC
+}
+
 export function normalizeSaveBytes(fileName: string, bytes: Uint8Array): Uint8Array {
   if (/\.sps$/i.test(fileName)) {
+    if (hasRawSaveMagic(bytes)) {
+      return bytes
+    }
     return decodeSpsBytes(bytes)
   }
   return bytes

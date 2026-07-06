@@ -314,6 +314,18 @@ describe('saveCodec', () => {
     expect(parsed.blocks.filter((block) => block.checksumValid).length).toBeGreaterThanOrEqual(minimumValidBlocks)
   })
 
+  it.each([
+    { fileName: 'fe6-4114.sps', expectedGameCode: 'FE6' },
+    { fileName: 'fe7-3236.sps', expectedGameCode: 'FE7' },
+  ] as const)('loads problematic GameFAQs fixture $fileName', async ({ fileName, expectedGameCode }) => {
+    const parsed = await parseSaveFile(await readFixtureFile(fileName))
+
+    expect(parsed.fileName).toBe(fileName)
+    expect(parsed.gameCode).toBe(expectedGameCode)
+    expect(parsed.blocks.length).toBe(7)
+    expect(parsed.blocks.some((block) => block.offset > 0 && block.size > 0)).toBe(true)
+  })
+
   it.each(FIREEMBLEM_NET_REAL_FIXTURE_CASES)('loads extracted fireemblem.net fixture $fileName', async ({
     fileName,
     expectedGameCode,

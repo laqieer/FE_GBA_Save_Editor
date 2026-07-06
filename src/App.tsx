@@ -129,6 +129,9 @@ function App() {
           <div className="card">
             <h2>{t('metadata')}</h2>
             <p className="metadata-line">
+              {t('openedFile')}: <strong>{parsed.fileName}</strong>
+            </p>
+            <p className="metadata-line">
               {t('game')}: <strong>{parsed.gameCode}</strong> · {t('metadata')}:{' '}
               <strong>{parsed.metadataName || 'N/A'}</strong>
             </p>
