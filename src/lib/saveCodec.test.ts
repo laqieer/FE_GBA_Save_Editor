@@ -142,7 +142,6 @@ function buildSpsSave(): File {
 
 const GAMEFAQS_FIXTURE_DIR = resolve(process.cwd(), 'test-saves', 'gamefaqs')
 const REAL_FIXTURE_CASES = [
-  { fileName: 'fe6-17515.sps', expectedGameCode: 'FE6', minimumValidBlocks: 0, expectedGeneralChecksumValid: null },
   { fileName: 'fe7-10530.sps', expectedGameCode: 'FE7', minimumValidBlocks: 1, expectedGeneralChecksumValid: true },
   { fileName: 'fe8-27399.sps', expectedGameCode: 'FE8', minimumValidBlocks: 1, expectedGeneralChecksumValid: true },
 ] as const
@@ -154,6 +153,11 @@ async function readFixtureFile(fileName: string): Promise<File> {
 }
 
 describe('saveCodec', () => {
+  it('keeps automated real-fixture assertions meaningful', () => {
+    expect(REAL_FIXTURE_CASES.every((fixture) => fixture.minimumValidBlocks > 0)).toBe(true)
+    expect(REAL_FIXTURE_CASES.every((fixture) => fixture.expectedGeneralChecksumValid !== null)).toBe(true)
+  })
+
   it('normalizes .sps containers to raw save bytes', () => {
     const sram = buildValidSampleSramBytes()
     const sps = buildSpsFixtureFromSram(sram)

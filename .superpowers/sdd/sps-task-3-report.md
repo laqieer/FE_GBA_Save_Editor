@@ -1,35 +1,26 @@
 Task 3 report
 
 Change:
-- Added `scripts/tools/download_gamefaqs_saves.ps1` to attempt the three requested GameFAQs pages plus direct save download URLs, record blocked/traceability metadata, and fall back to Archive.org mirror fixtures when GameFAQs returns `403 Forbidden`.
-- Added deterministic real-world `.sps` fixtures under `test-saves/gamefaqs/` with provenance docs and raw metadata snapshots.
-- Updated `README.md` with `.sps` support and fixture refresh workflow.
-- Extended `src/lib/saveCodec.test.ts` to parse committed real-world fixtures and fixed `src/lib/saveCodec.ts` SharkPort checksum validation so real GameFAQs-derived `.sps` files load correctly.
+- Removed FE6 from the automated real-fixture checksum assertion in `src/lib/saveCodec.test.ts` so the suite no longer carries a no-op FE6 case.
+- Added a guard test in `src/lib/saveCodec.test.ts` that fails if any future real-fixture case uses `minimumValidBlocks: 0` or `expectedGeneralChecksumValid: null`.
+- Documented the FE6 exclusion in `test-saves/gamefaqs/README.md` with concrete evidence from the committed metadata plus the reachable Archive.org FE6 fixture probes.
 
 Files:
-- `scripts/tools/download_gamefaqs_saves.ps1`
-- `README.md`
-- `src/lib/saveCodec.ts`
 - `src/lib/saveCodec.test.ts`
 - `test-saves/gamefaqs/README.md`
-- `test-saves/gamefaqs/fe6-17515.sps`
-- `test-saves/gamefaqs/fe7-10530.sps`
-- `test-saves/gamefaqs/fe8-27399.sps`
-- `test-saves/gamefaqs/sources/download-metadata.json`
-- `test-saves/gamefaqs/sources/fe6-archive-description.txt`
-- `test-saves/gamefaqs/sources/fe7-archive-description.txt`
-- `test-saves/gamefaqs/sources/fe8-archive-description.txt`
+- `.superpowers/sdd/sps-task-3-report.md`
 
 Behavior:
-- Real `.sps` fixtures from the requested Fire Emblem save pages are now committed for deterministic CI coverage.
-- The download workflow records both page-level and direct-download `403` failures from GameFAQs, then saves traceable Archive.org fallback provenance and fixture descriptions.
-- SharkPort checksum validation now matches real-world files instead of only the synthetic test fixture format.
+- Automated real-fixture assertions now cover only fixtures with explicit checksum expectations and at least one checksum-valid block.
+- FE6 remains available as a manual investigation fixture, but is no longer treated as meaningful automated checksum coverage.
+- The README now records why FE6 is excluded: GameFAQs access is blocked (`403 Forbidden`), and the reachable Archive.org FE6 candidates either produce `generalChecksumValid === false` with `0` valid blocks (`17515`, `11187`, `8090`, `5846`) or fail SPS decoding as malformed (`4114`, `4202`).
 
 Validation:
+- `npm run test:run -- src/lib/saveCodec.test.ts` -> PASS (`13` tests)
 - `npm run test:run` -> PASS (`48` tests)
 - `npm run build` -> PASS
 
 Concerns:
-- GameFAQs currently blocks automated page and direct file requests in this environment; the committed Archive.org mirror fixtures and `download-metadata.json` are the supported deterministic fallback until direct GameFAQs automation becomes reachable again.
+- FE6 automated checksum coverage is still absent until a reachable FE6 fixture exists that parses with an explicit global checksum result and at least one checksum-valid block.
 
 Report path: `C:\Projects\FE_GBA_Save_Editor\.superpowers\sdd\sps-task-3-report.md`
