@@ -84,4 +84,19 @@ describe('blockSchema', () => {
       }
     }
   })
+
+  it('matches FE6 packed-unit stride and support count from save_game.h', () => {
+    const fe6Fields = getBlockSchema('FE6', 0)
+    const unit0Character = fe6Fields.find((field) => field.memberPath === 'units[0].characterId')
+    const unit1Character = fe6Fields.find((field) => field.memberPath === 'units[1].characterId')
+    const support9 = fe6Fields.find((field) => field.memberPath === 'units[0].supports[9]')
+
+    expect(unit0Character).toBeDefined()
+    expect(unit1Character).toBeDefined()
+    expect(support9).toBeDefined()
+    if (!unit0Character || !unit1Character || !support9) return
+
+    expect(unit1Character.offset - unit0Character.offset).toBe(0x28)
+    expect(support9.offset).toBe(unit0Character.offset + 0x1e + 9)
+  })
 })

@@ -43,10 +43,11 @@ type UnitLayout = Readonly<{
     | { kind: 'byte'; labelKey: string; memberPath: string; byteOffset: number }
   weaponRankOffset: number
   supportOffset: number
+  supportCount: number
 }>
 
 const FE7_FE8_PACKED_UNIT_SIZE = 0x24
-const FE6_PACKED_UNIT_SIZE = 0x25
+const FE6_PACKED_UNIT_SIZE = 0x28
 
 function makeField(field: BlockFieldSchemaInput): BlockFieldSchema {
   return {
@@ -210,6 +211,7 @@ const FE6_LAYOUT: UnitLayout = {
   characterIdField: { kind: 'bit', labelKey: 'field.unit.characterId', memberPath: 'characterId', bitLength: 7 },
   weaponRankOffset: 0x16,
   supportOffset: 0x1e,
+  supportCount: 10,
 }
 
 const FE7_LAYOUT: UnitLayout = {
@@ -224,6 +226,7 @@ const FE7_LAYOUT: UnitLayout = {
   characterIdField: { kind: 'byte', labelKey: 'field.unit.characterId', memberPath: 'characterId', byteOffset: 0x14 },
   weaponRankOffset: 0x15,
   supportOffset: 0x1d,
+  supportCount: 7,
 }
 
 const FE8_LAYOUT: UnitLayout = {
@@ -238,6 +241,7 @@ const FE8_LAYOUT: UnitLayout = {
   characterIdField: { kind: 'byte', labelKey: 'field.unit.characterId', memberPath: 'characterId', byteOffset: 0x14 },
   weaponRankOffset: 0x15,
   supportOffset: 0x1d,
+  supportCount: 7,
 }
 
 function getSupplyIdBase(layout: UnitLayout): number {
@@ -339,7 +343,7 @@ function buildPackedUnitSchema(unitIndex: number, layout: UnitLayout): readonly 
     )
   }
 
-  for (let supportIndex = 0; supportIndex < 7; supportIndex += 1) {
+  for (let supportIndex = 0; supportIndex < layout.supportCount; supportIndex += 1) {
     fields.push(
       makeField({
         key: `unit.${unitIndex}.support.${supportIndex}`,
