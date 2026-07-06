@@ -101,3 +101,6 @@
 ### Commit
 - `b5c7f8e` — `feat: add page jump and unit selector to structured editor`
 
+
+### Additional Verification
+- `npm run build` — PASS
