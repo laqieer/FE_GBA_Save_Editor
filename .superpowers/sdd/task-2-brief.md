@@ -1,31 +1,87 @@
-# Task 2 Brief
+### Task 2: Add pure navigation helper logic for page-jump parsing and unit selection
 
-Build structured field schema + row generation for full-block view.
+**Files:**
+- Create: `src/lib/structuredNavigation.ts`
+- Create: `src/lib/structuredNavigation.test.ts`
 
-Files:
-- Create: src/lib/blockSchema.ts
-- Create: src/lib/structuredEditor.ts
-- Create: src/lib/structuredEditor.test.ts
-- Modify: src/lib/saveCodec.ts
+**Interfaces:**
+- Consumes: `StructuredDomainSection`, `StructuredDomainPage`
+- Produces:
+  - `export function parsePageJump(input: string, totalPages: number): number | null`
+  - `export function clampPageIndex(pageIndex: number, totalPages: number): number`
+  - `export function findUnitPageByIndex(section: StructuredDomainSection, unitIndex: number): number | null`
 
-Consumes from Task 1:
-- readBlockBytes(parsed, blockIndex)
-- updateBlockBytes(parsed, blockIndex, offsetInBlock, patch)
+- [ ] **Step 1: Write failing tests for jump parsing and unit-page lookup**
 
-Interfaces to produce:
-- type FieldRow = { key: string; offset: number; size: 1|2|4; type: "u8"|"s8"|"u16"|"u32"|"bytes"|"text"; labelKey: string; value: number|string }
-- getStructuredRows(parsed: ParsedSaveFile, blockIndex: number): FieldRow[]
-- applyStructuredEdit(parsed: ParsedSaveFile, blockIndex: number, rowKey: string, nextValue: string): ParsedSaveFile
+```ts
+it('parses 1-based page input and clamps later through caller', () => {
+  expect(parsePageJump('3', 10)).toBe(2)
+  expect(parsePageJump(' 1 ', 10)).toBe(0)
+  expect(parsePageJump('abc', 10)).toBeNull()
+})
 
-Validation requirements:
-- Known PlaySt fields must appear via schema rows for game/suspend blocks.
-- Unknown regions must be represented by generic byte rows so whole block is editable.
-- applyStructuredEdit must validate type bounds and reject invalid inputs without mutating canonical bytes.
+it('finds unit page index from units.<n> group key', () => {
+  const section: StructuredDomainSection = {
+    id: 'units',
+    domain: 'units',
+    title: { labelKey: 'x', defaultLabel: 'x' },
+    rows: [],
+    groups: [
+      { id: 'units:units.0', domain: 'units', groupKey: 'units.0', rows: [], title: { labelKey: 'x', defaultLabel: 'x' }, defaultCollapsed: false },
+      { id: 'units:units.1', domain: 'units', groupKey: 'units.1', rows: [], title: { labelKey: 'x', defaultLabel: 'x' }, defaultCollapsed: false },
+    ],
+  }
 
-Verification commands:
-- npm run test:run -- src/lib/structuredEditor.test.ts
-- npm run test:run -- src/lib/blockCodec.test.ts src/lib/saveCodec.test.ts src/lib/structuredEditor.test.ts
-- npm run build
+  expect(findUnitPageByIndex(section, 1)).toBe(1)
+  expect(findUnitPageByIndex(section, 9)).toBeNull()
+})
+```
 
-Commit:
-- feat: add structured full-block row model
+- [ ] **Step 2: Run tests to verify failure**
+
+Run: `npm run test:run -- src/lib/structuredNavigation.test.ts`
+Expected: FAIL because file/functions do not exist yet.
+
+- [ ] **Step 3: Implement helper module**
+
+```ts
+import type { StructuredDomainSection } from './structuredTableLayout'
+
+export function clampPageIndex(pageIndex: number, totalPages: number): number {
+  const last = Math.max(0, totalPages - 1)
+  return Math.min(Math.max(0, Math.trunc(pageIndex) || 0), last)
+}
+
+export function parsePageJump(input: string, totalPages: number): number | null {
+  const trimmed = input.trim()
+  if (!/^\d+$/.test(trimmed)) return null
+  const oneBased = Number(trimmed)
+  if (!Number.isSafeInteger(oneBased) || oneBased <= 0) return null
+  return clampPageIndex(oneBased - 1, totalPages)
+}
+
+export function findUnitPageByIndex(
+  section: StructuredDomainSection,
+  unitIndex: number,
+): number | null {
+  if (section.domain !== 'units') return null
+  const targetKey = `units.${unitIndex}`
+  const idx = section.groups.findIndex((group) => group.groupKey === targetKey)
+  return idx >= 0 ? idx : null
+}
+```
+
+- [ ] **Step 4: Run tests to verify pass**
+
+Run: `npm run test:run -- src/lib/structuredNavigation.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/lib/structuredNavigation.ts src/lib/structuredNavigation.test.ts
+git commit -m "feat: add structured navigation helper utilities"
+```
+
+---
+

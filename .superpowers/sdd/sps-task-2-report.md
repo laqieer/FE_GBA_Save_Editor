@@ -31,3 +31,8 @@ Concerns:
 - Suggest adding an automated UI/integration test for download filename in future.
 
 Report path: C:\Projects\FE_GBA_Save_Editor\.superpowers\sdd\sps-task-2-report.md
+
+## Controller verification after fix
+- npm run test:run -- src/lib/saveCodec.test.ts (PASS)
+- npm run test:run (PASS, 45 tests)
+- npm run build (PASS)

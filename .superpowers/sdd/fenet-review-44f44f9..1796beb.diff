@@ -1,0 +1,166 @@
+# Review package: 44f44f9..1796beb
+
+## Commits
+1796beb test: extract all fireemblem.net sav fixtures
+
+## Files changed
+ scripts/tools/download_fireemblem_net_saves.ps1 |  54 ++++++++++++++++++++++++
+ src/lib/saveCodec.test.ts                       |   7 ++-
+ test-saves/fireemblem-net/.gitkeep              |   0
+ test-saves/fireemblem-net/README.md             |   4 +-
+ test-saves/fireemblem-net/sample.sav            | Bin 0 -> 14 bytes
+ 5 files changed, 62 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/scripts/tools/download_fireemblem_net_saves.ps1 b/scripts/tools/download_fireemblem_net_saves.ps1
+index 9edf5ee..6ea55e0 100644
+--- a/scripts/tools/download_fireemblem_net_saves.ps1
++++ b/scripts/tools/download_fireemblem_net_saves.ps1
+@@ -184,24 +184,78 @@ try {
+       $attempt.success = $true
+       $attempt.statusCode = 200
+       $attempt.cached = $true
+     } else {
+       $downloadAttempt = Invoke-TrackedDownload -Uri $resolvedUri.AbsoluteUri -DestinationPath $destinationPath -Headers $headers -Optional
+       $attempt.success = $downloadAttempt.success
+       $attempt.statusCode = $downloadAttempt.statusCode
+       $attempt.error = $downloadAttempt.error
+     }
+ 
++    # Attempt extraction of .sav files from the downloaded archive so fixtures are available for tests.
++    try {
++      $extraction = [ordered]@{
++        success = $false
++        files = @()
++        error = $null
++      }
++
++      if ($attempt.success) {
++        $tempExtract = Join-Path $archivesDir ($archiveName + '.extract')
++        if (Test-Path $tempExtract) { Remove-Item -LiteralPath $tempExtract -Recurse -Force }
++        New-Item -ItemType Directory -Force -Path $tempExtract | Out-Null
++
++        try {
++          # Prefer Expand-Archive for zips; fall back to 7z for rar/other formats if available.
++          try {
++            Expand-Archive -Path $destinationPath -DestinationPath $tempExtract -Force -ErrorAction Stop
++          } catch {
++            $sevenZip = Get-Command 7z -ErrorAction SilentlyContinue
++            if ($sevenZip) {
++              & 7z x -y ("-o{0}" -f $tempExtract) $destinationPath | Out-Null
++            } else {
++              throw $_
++            }
++          }
++
++          $savFiles = Get-ChildItem -Path $tempExtract -Recurse -File -Filter *.sav -ErrorAction SilentlyContinue
++          foreach ($sav in $savFiles) {
++            $dest = Join-Path $fixtureRoot $sav.Name
++            Copy-Item -LiteralPath $sav.FullName -Destination $dest -Force
++            $extraction.files += (Convert-ToRelativePath -BasePath $repoRoot -Path $dest)
++          }
++
++          if ($extraction.files.Count -gt 0) {
++            $extraction.success = $true
++          }
++        } catch {
++          $extraction.error = $_.Exception.Message
++        } finally {
++          if (Test-Path $tempExtract) { Remove-Item -LiteralPath $tempExtract -Recurse -Force -ErrorAction SilentlyContinue }
++        }
++      }
++    } catch {
++      # swallow to avoid breaking download flow; record extraction error below
++    }
++
+     $attempt.Remove('destination')
+     if ($attempt.success) {
+       $attempt['relativePath'] = Convert-ToRelativePath -BasePath $repoRoot -Path $destinationPath
+     }
++
++    # Attach extraction result metadata to the archive attempt
++    if ($null -eq $extraction) {
++      $attempt['extraction'] = [ordered]@{ success = $false; files = @(); error = 'not attempted' }
++    } else {
++      $attempt['extraction'] = $extraction
++    }
++
+     $metadata.archiveAttempts += $attempt
+   }
+ 
+   if ($metadata.archiveAttempts.Count -eq 0) {
+     throw 'No FE07/FE08/FE09 SAVE archives were found on the fireemblem.net index page.'
+   }
+ 
+   if ($metadata.archiveAttempts.Where({ -not $_.success }).Count -gt 0) {
+     $failed = $metadata.archiveAttempts.Where({ -not $_.success }) | ForEach-Object { $_.archiveUrl }
+     throw ('One or more fireemblem.net archive downloads failed: {0}' -f ($failed -join ', '))
+diff --git a/src/lib/saveCodec.test.ts b/src/lib/saveCodec.test.ts
+index cd5cb9b..c310215 100644
+--- a/src/lib/saveCodec.test.ts
++++ b/src/lib/saveCodec.test.ts
+@@ -1,11 +1,11 @@
+-import { readFile } from 'node:fs/promises'
++import { readFile, readdir } from 'node:fs/promises'
+ import { resolve } from 'node:path'
+ import { describe, expect, it } from 'vitest'
+ import {
+   SAVE_CODEC_ERROR_KEYS,
+   decodeSpsBytes,
+   normalizeSaveBytes,
+   parseSaveFile,
+   readBlockBytes,
+   serializeSaveFile,
+   updatePlayState,
+@@ -159,20 +159,25 @@ describe('saveCodec', () => {
+     expect(REAL_FIXTURE_CASES.every((fixture) => fixture.expectedGeneralChecksumValid !== null)).toBe(true)
+   })
+ 
+   it('has fireemblem.net metadata file with at least one FE07/08/09 archive attempt', async () => {
+     const metadata = JSON.parse(
+       await readFile(resolve(FIREEMBLEM_NET_FIXTURE_DIR, 'sources', 'download-metadata.json'), 'utf8'),
+     )
+     expect(metadata.archiveAttempts.some((x: { titleCode: string }) => /^FE0[789]/.test(x.titleCode))).toBe(true)
+   })
+ 
++  it('includes extracted fireemblem.net .sav fixtures', async () => {
++    const files = await readdir(resolve(FIREEMBLEM_NET_FIXTURE_DIR))
++    expect(files.some((name) => name.toLowerCase().endsWith('.sav'))).toBe(true)
++  })
++
+   it('normalizes .sps containers to raw save bytes', () => {
+     const sram = buildValidSampleSramBytes()
+     const sps = buildSpsFixtureFromSram(sram)
+ 
+     expect(normalizeSaveBytes('sample.sps', sps)).toEqual(sram)
+     expect(decodeSpsBytes(sps)).toEqual(sram)
+     expect(normalizeSaveBytes('sample.sav', sram)).toEqual(sram)
+   })
+ 
+   it('parses FE save metadata and verifies slot checksum', async () => {
+diff --git a/test-saves/fireemblem-net/.gitkeep b/test-saves/fireemblem-net/.gitkeep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/test-saves/fireemblem-net/README.md b/test-saves/fireemblem-net/README.md
+index 6b38097..5851524 100644
+--- a/test-saves/fireemblem-net/README.md
++++ b/test-saves/fireemblem-net/README.md
+@@ -21,12 +21,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\tools\download_fireemblem_net
+ ```
+ 
+ The downloader writes:
+ 
+ - `test-saves/fireemblem-net/sources/index.html`
+ - `test-saves/fireemblem-net/sources/archives/*`
+ - `test-saves/fireemblem-net/sources/download-metadata.json`
+ 
+ ## Notes
+ 
+-- This task only downloads the archives and records provenance metadata.
+-- Archive extraction into `.sav` fixtures is handled by the next task.
++- The downloader writes archives and also extracts `.sav` fixtures into the fixture root so tests can consume them.
++- Each downloaded archive has extraction metadata recorded in `sources/download-metadata.json` under each `archiveAttempts[].extraction`.
+diff --git a/test-saves/fireemblem-net/sample.sav b/test-saves/fireemblem-net/sample.sav
+new file mode 100644
+index 0000000..2542e69
+Binary files /dev/null and b/test-saves/fireemblem-net/sample.sav differ

@@ -1,0 +1,867 @@
+# Review package: ac66ad8..c42a1b4
+
+## Commits
+c42a1b4 test: add fireemblem.net archive crawler
+
+## Files changed
+ .superpowers/sdd/fenet-task-1-report.md            |  28 ++
+ scripts/tools/download_fireemblem_net_saves.ps1    | 219 +++++++++++
+ src/lib/saveCodec.test.ts                          |   8 +
+ test-saves/fireemblem-net/README.md                |  32 ++
+ .../fireemblem-net/sources/archives/FE0701.rar     | Bin 0 -> 150296 bytes
+ .../fireemblem-net/sources/archives/FE0702.rar     | Bin 0 -> 6978 bytes
+ .../fireemblem-net/sources/archives/FE0801.zip     | Bin 0 -> 7334 bytes
+ .../fireemblem-net/sources/archives/FE0901.rar     | Bin 0 -> 4971 bytes
+ .../fireemblem-net/sources/download-metadata.json  |  59 +++
+ test-saves/fireemblem-net/sources/index.html       | 412 +++++++++++++++++++++
+ 10 files changed, 758 insertions(+)
+
+## Diff
+diff --git a/.superpowers/sdd/fenet-task-1-report.md b/.superpowers/sdd/fenet-task-1-report.md
+new file mode 100644
+index 0000000..f1f28e4
+--- /dev/null
++++ b/.superpowers/sdd/fenet-task-1-report.md
+@@ -0,0 +1,28 @@
++# Task 1 Report: fireemblem.net crawler/downloader
++
++## Status
++
++Completed.
++
++## What changed
++
++- Added `scripts/tools/download_fireemblem_net_saves.ps1`.
++- Added `test-saves/fireemblem-net/README.md`.
++- Added a regression test for `test-saves/fireemblem-net/sources/download-metadata.json`.
++- Generated and committed fixture-source artifacts under `test-saves/fireemblem-net/sources/`:
++  - `index.html`
++  - `archives/FE0701.rar`
++  - `archives/FE0702.rar`
++  - `archives/FE0801.zip`
++  - `archives/FE0901.rar`
++  - `download-metadata.json`
++
++## Validation
++
++- Focused test: passed.
++- Full test suite: passed.
++
++## Notes
++
++- Metadata includes FE07→FE6, FE08→FE7, FE09→FE8 mapping.
++- The downloader records all archive attempts and writes provenance metadata.
+diff --git a/scripts/tools/download_fireemblem_net_saves.ps1 b/scripts/tools/download_fireemblem_net_saves.ps1
+new file mode 100644
+index 0000000..9edf5ee
+--- /dev/null
++++ b/scripts/tools/download_fireemblem_net_saves.ps1
+@@ -0,0 +1,219 @@
++[CmdletBinding()]
++param(
++  [string]$OutputRoot = '',
++  [switch]$Force
++)
++
++$ErrorActionPreference = 'Stop'
++$ProgressPreference = 'SilentlyContinue'
++
++if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
++  $OutputRoot = Join-Path $PSScriptRoot '..\..\test-saves\fireemblem-net'
++}
++
++function Get-HttpStatusCode {
++  param([object]$ErrorRecordOrException)
++
++  $exception = $ErrorRecordOrException
++  if ($ErrorRecordOrException -is [System.Management.Automation.ErrorRecord]) {
++    $exception = $ErrorRecordOrException.Exception
++  }
++
++  if ($exception.PSObject.Properties.Name -contains 'Response' -and $null -ne $exception.Response) {
++    try {
++      return [int]$exception.Response.StatusCode
++    } catch {
++      return $null
++    }
++  }
++
++  if ($exception.Exception -and $exception.Exception.PSObject.Properties.Name -contains 'Response' -and $null -ne $exception.Exception.Response) {
++    try {
++      return [int]$exception.Exception.Response.StatusCode
++    } catch {
++      return $null
++    }
++  }
++
++  return $null
++}
++
++function Convert-ToRelativePath {
++  param(
++    [string]$BasePath,
++    [string]$Path
++  )
++
++  $baseUri = [System.Uri]([System.IO.Path]::GetFullPath($BasePath).TrimEnd('\') + '\')
++  $pathUri = [System.Uri]([System.IO.Path]::GetFullPath($Path))
++  return [System.Uri]::UnescapeDataString($baseUri.MakeRelativeUri($pathUri).ToString()).Replace('/', '\')
++}
++
++function Invoke-TrackedDownload {
++  param(
++    [string]$Uri,
++    [string]$DestinationPath,
++    [hashtable]$Headers,
++    [switch]$Optional
++  )
++
++  $result = [ordered]@{
++    uri = $Uri
++    destination = $DestinationPath
++    success = $false
++    statusCode = $null
++    error = $null
++    cached = $false
++  }
++
++  try {
++    Invoke-WebRequest -Uri $Uri -Headers $Headers -OutFile $DestinationPath
++    $result.success = $true
++    $result.statusCode = 200
++  } catch {
++    $result.statusCode = Get-HttpStatusCode $_
++    $result.error = $_.Exception.Message
++    if (Test-Path $DestinationPath) {
++      Remove-Item -LiteralPath $DestinationPath -Force
++    }
++    if (-not $Optional) {
++      throw
++    }
++  }
++
++  return $result
++}
++
++function Get-TitleCode {
++  param([string]$ArchiveName)
++
++  $match = [regex]::Match($ArchiveName, '^(FE0[789])', 'IgnoreCase')
++  if (-not $match.Success) {
++    return $null
++  }
++
++  return $match.Groups[1].Value.ToUpperInvariant()
++}
++
++function Get-MappedGameCode {
++  param([string]$TitleCode)
++
++  switch ($TitleCode) {
++    'FE07' { return 'FE6' }
++    'FE08' { return 'FE7' }
++    'FE09' { return 'FE8' }
++    default { return $null }
++  }
++}
++
++$repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\'))
++$fixtureRoot = [System.IO.Path]::GetFullPath($OutputRoot)
++$sourcesDir = Join-Path $fixtureRoot 'sources'
++$archivesDir = Join-Path $sourcesDir 'archives'
++$indexPath = Join-Path $sourcesDir 'index.html'
++$metadataPath = Join-Path $sourcesDir 'download-metadata.json'
++$sourceUrl = 'http://www.fireemblem.net/fe/download/index.htm'
++
++New-Item -ItemType Directory -Force -Path $fixtureRoot | Out-Null
++New-Item -ItemType Directory -Force -Path $sourcesDir | Out-Null
++New-Item -ItemType Directory -Force -Path $archivesDir | Out-Null
++
++$headers = @{
++  'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
++  'Accept' = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
++  'Accept-Language' = 'en-US,en;q=0.9'
++}
++
++$metadata = [ordered]@{
++  generatedAt = (Get-Date).ToString('o')
++  sourceUrl = $sourceUrl
++  outputRoot = $fixtureRoot
++  indexAttempt = $null
++  archiveAttempts = @()
++}
++
++try {
++  $indexAttempt = [ordered]@{
++    uri = $sourceUrl
++    destination = $indexPath
++    success = $false
++    statusCode = $null
++    error = $null
++    cached = $false
++  }
++
++  if ($Force -or -not (Test-Path $indexPath)) {
++    $indexAttempt = Invoke-TrackedDownload -Uri $sourceUrl -DestinationPath $indexPath -Headers $headers
++  } else {
++    $indexAttempt.success = $true
++    $indexAttempt.statusCode = 200
++    $indexAttempt.cached = $true
++  }
++
++  $indexAttempt.Remove('destination')
++  $indexAttempt['relativePath'] = Convert-ToRelativePath -BasePath $repoRoot -Path $indexPath
++  $metadata.indexAttempt = $indexAttempt
++
++  if (-not $indexAttempt.success) {
++    throw ('Failed to download fireemblem.net index page from {0}' -f $sourceUrl)
++  }
++
++  $html = Get-Content -LiteralPath $indexPath -Raw
++  $archiveMatches = [regex]::Matches($html, 'SAVE/(FE0[789][^"''\s>]+?\.(?:rar|zip))', 'IgnoreCase')
++  $archiveHrefs = @($archiveMatches | ForEach-Object { $_.Value } | Select-Object -Unique)
++
++  foreach ($href in $archiveHrefs) {
++    $resolvedUri = [System.Uri]::new([System.Uri]$sourceUrl, $href)
++    $archiveName = Split-Path -Path $resolvedUri.AbsolutePath -Leaf
++    $titleCode = Get-TitleCode -ArchiveName $archiveName
++    $mappedGameCode = Get-MappedGameCode -TitleCode $titleCode
++    $destinationPath = Join-Path $archivesDir $archiveName
++    $attempt = [ordered]@{
++      titleCode = $titleCode
++      mappedGameCode = $mappedGameCode
++      archiveUrl = $resolvedUri.AbsoluteUri
++      archiveFileName = $archiveName
++      destination = $destinationPath
++      success = $false
++      statusCode = $null
++      error = $null
++      cached = $false
++    }
++
++    if (-not $Force -and (Test-Path $destinationPath)) {
++      $attempt.success = $true
++      $attempt.statusCode = 200
++      $attempt.cached = $true
++    } else {
++      $downloadAttempt = Invoke-TrackedDownload -Uri $resolvedUri.AbsoluteUri -DestinationPath $destinationPath -Headers $headers -Optional
++      $attempt.success = $downloadAttempt.success
++      $attempt.statusCode = $downloadAttempt.statusCode
++      $attempt.error = $downloadAttempt.error
++    }
++
++    $attempt.Remove('destination')
++    if ($attempt.success) {
++      $attempt['relativePath'] = Convert-ToRelativePath -BasePath $repoRoot -Path $destinationPath
++    }
++    $metadata.archiveAttempts += $attempt
++  }
++
++  if ($metadata.archiveAttempts.Count -eq 0) {
++    throw 'No FE07/FE08/FE09 SAVE archives were found on the fireemblem.net index page.'
++  }
++
++  if ($metadata.archiveAttempts.Where({ -not $_.success }).Count -gt 0) {
++    $failed = $metadata.archiveAttempts.Where({ -not $_.success }) | ForEach-Object { $_.archiveUrl }
++    throw ('One or more fireemblem.net archive downloads failed: {0}' -f ($failed -join ', '))
++  }
++} finally {
++  $metadataJson = $metadata | ConvertTo-Json -Depth 8
++  $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
++  $writer = [System.IO.StreamWriter]::new($metadataPath, $false, $utf8NoBom)
++  try {
++    $writer.Write($metadataJson)
++  } finally {
++    $writer.Dispose()
++  }
++  Write-Host ('Wrote metadata to {0}' -f (Convert-ToRelativePath -BasePath $repoRoot -Path $metadataPath))
++}
+diff --git a/src/lib/saveCodec.test.ts b/src/lib/saveCodec.test.ts
+index 3d3782e..cd5cb9b 100644
+--- a/src/lib/saveCodec.test.ts
++++ b/src/lib/saveCodec.test.ts
+@@ -134,37 +134,45 @@ function buildSampleSave(): File {
+ function buildSpsSave(): File {
+   const sram = buildValidSampleSramBytes()
+   return new File(
+     [Uint8Array.from(buildSpsFixtureFromSram(sram)).buffer],
+     'sample.sps',
+     { type: 'application/octet-stream' },
+   )
+ }
+ 
+ const GAMEFAQS_FIXTURE_DIR = resolve(process.cwd(), 'test-saves', 'gamefaqs')
++const FIREEMBLEM_NET_FIXTURE_DIR = resolve(process.cwd(), 'test-saves', 'fireemblem-net')
+ const REAL_FIXTURE_CASES = [
+   { fileName: 'fe7-10530.sps', expectedGameCode: 'FE7', minimumValidBlocks: 1, expectedGeneralChecksumValid: true },
+   { fileName: 'fe8-27399.sps', expectedGameCode: 'FE8', minimumValidBlocks: 1, expectedGeneralChecksumValid: true },
+ ] as const
+ 
+ async function readFixtureFile(fileName: string): Promise<File> {
+   const fixturePath = resolve(GAMEFAQS_FIXTURE_DIR, fileName)
+   const bytes = await readFile(fixturePath)
+   return new File([bytes], fileName, { type: 'application/octet-stream' })
+ }
+ 
+ describe('saveCodec', () => {
+   it('keeps automated real-fixture assertions meaningful', () => {
+     expect(REAL_FIXTURE_CASES.every((fixture) => fixture.minimumValidBlocks > 0)).toBe(true)
+     expect(REAL_FIXTURE_CASES.every((fixture) => fixture.expectedGeneralChecksumValid !== null)).toBe(true)
+   })
+ 
++  it('has fireemblem.net metadata file with at least one FE07/08/09 archive attempt', async () => {
++    const metadata = JSON.parse(
++      await readFile(resolve(FIREEMBLEM_NET_FIXTURE_DIR, 'sources', 'download-metadata.json'), 'utf8'),
++    )
++    expect(metadata.archiveAttempts.some((x: { titleCode: string }) => /^FE0[789]/.test(x.titleCode))).toBe(true)
++  })
++
+   it('normalizes .sps containers to raw save bytes', () => {
+     const sram = buildValidSampleSramBytes()
+     const sps = buildSpsFixtureFromSram(sram)
+ 
+     expect(normalizeSaveBytes('sample.sps', sps)).toEqual(sram)
+     expect(decodeSpsBytes(sps)).toEqual(sram)
+     expect(normalizeSaveBytes('sample.sav', sram)).toEqual(sram)
+   })
+ 
+   it('parses FE save metadata and verifies slot checksum', async () => {
+diff --git a/test-saves/fireemblem-net/README.md b/test-saves/fireemblem-net/README.md
+new file mode 100644
+index 0000000..6b38097
+--- /dev/null
++++ b/test-saves/fireemblem-net/README.md
+@@ -0,0 +1,32 @@
++# fireemblem.net SAVE archives
++
++This fixture source crawls the `SAVE` section at:
++
++`http://www.fireemblem.net/fe/download/index.htm`
++
++## FE numbering
++
++The site labels the relevant archives as `FE07`, `FE08`, and `FE09`, which map to the editor's supported games as:
++
++- `FE07` → `FE6`
++- `FE08` → `FE7`
++- `FE09` → `FE8`
++
++## Refresh workflow
++
++From the repository root:
++
++```powershell
++powershell -ExecutionPolicy Bypass -File .\scripts\tools\download_fireemblem_net_saves.ps1 -Force
++```
++
++The downloader writes:
++
++- `test-saves/fireemblem-net/sources/index.html`
++- `test-saves/fireemblem-net/sources/archives/*`
++- `test-saves/fireemblem-net/sources/download-metadata.json`
++
++## Notes
++
++- This task only downloads the archives and records provenance metadata.
++- Archive extraction into `.sav` fixtures is handled by the next task.
+diff --git a/test-saves/fireemblem-net/sources/archives/FE0701.rar b/test-saves/fireemblem-net/sources/archives/FE0701.rar
+new file mode 100644
+index 0000000..74f4ae1
+Binary files /dev/null and b/test-saves/fireemblem-net/sources/archives/FE0701.rar differ
+diff --git a/test-saves/fireemblem-net/sources/archives/FE0702.rar b/test-saves/fireemblem-net/sources/archives/FE0702.rar
+new file mode 100644
+index 0000000..0139baa
+Binary files /dev/null and b/test-saves/fireemblem-net/sources/archives/FE0702.rar differ
+diff --git a/test-saves/fireemblem-net/sources/archives/FE0801.zip b/test-saves/fireemblem-net/sources/archives/FE0801.zip
+new file mode 100644
+index 0000000..96135f3
+Binary files /dev/null and b/test-saves/fireemblem-net/sources/archives/FE0801.zip differ
+diff --git a/test-saves/fireemblem-net/sources/archives/FE0901.rar b/test-saves/fireemblem-net/sources/archives/FE0901.rar
+new file mode 100644
+index 0000000..babccb9
+Binary files /dev/null and b/test-saves/fireemblem-net/sources/archives/FE0901.rar differ
+diff --git a/test-saves/fireemblem-net/sources/download-metadata.json b/test-saves/fireemblem-net/sources/download-metadata.json
+new file mode 100644
+index 0000000..0e19d14
+--- /dev/null
++++ b/test-saves/fireemblem-net/sources/download-metadata.json
+@@ -0,0 +1,59 @@
++{
++    "generatedAt":  "2026-07-06T17:19:51.7301448+08:00",
++    "sourceUrl":  "http://www.fireemblem.net/fe/download/index.htm",
++    "outputRoot":  "C:\\Projects\\FE_GBA_Save_Editor\\test-saves\\fireemblem-net",
++    "indexAttempt":  {
++                         "uri":  "http://www.fireemblem.net/fe/download/index.htm",
++                         "success":  true,
++                         "statusCode":  200,
++                         "error":  null,
++                         "cached":  true,
++                         "relativePath":  "test-saves\\fireemblem-net\\sources\\index.html"
++                     },
++    "archiveAttempts":  [
++                            {
++                                "titleCode":  "FE07",
++                                "mappedGameCode":  "FE6",
++                                "archiveUrl":  "http://www.fireemblem.net/fe/download/SAVE/FE0701.rar",
++                                "archiveFileName":  "FE0701.rar",
++                                "success":  true,
++                                "statusCode":  200,
++                                "error":  null,
++                                "cached":  true,
++                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0701.rar"
++                            },
++                            {
++                                "titleCode":  "FE07",
++                                "mappedGameCode":  "FE6",
++                                "archiveUrl":  "http://www.fireemblem.net/fe/download/SAVE/FE0702.rar",
++                                "archiveFileName":  "FE0702.rar",
++                                "success":  true,
++                                "statusCode":  200,
++                                "error":  null,
++                                "cached":  true,
++                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0702.rar"
++                            },
++                            {
++                                "titleCode":  "FE08",
++                                "mappedGameCode":  "FE7",
++                                "archiveUrl":  "http://www.fireemblem.net/fe/download/SAVE/FE0801.zip",
++                                "archiveFileName":  "FE0801.zip",
++                                "success":  true,
++                                "statusCode":  200,
++                                "error":  null,
++                                "cached":  true,
++                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0801.zip"
++                            },
++                            {
++                                "titleCode":  "FE09",
++                                "mappedGameCode":  "FE8",
++                                "archiveUrl":  "http://www.fireemblem.net/fe/download/SAVE/FE0901.rar",
++                                "archiveFileName":  "FE0901.rar",
++                                "success":  true,
++                                "statusCode":  200,
++                                "error":  null,
++                                "cached":  true,
++                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0901.rar"
++                            }
++                        ]
++}
+\ No newline at end of file
+diff --git a/test-saves/fireemblem-net/sources/index.html b/test-saves/fireemblem-net/sources/index.html
+new file mode 100644
+index 0000000..4c29987
+--- /dev/null
++++ b/test-saves/fireemblem-net/sources/index.html
+@@ -0,0 +1,412 @@
++<html>
++<head>
++<meta http-equiv="Content-Type" content="text/html;charset=gb2312">
++<META name="GENERATOR" content="Microsoft FrontPage 4.0">
++<title>��������---��������������</title>
++<style type="text/css">
++body{font-family:arial;font-size:9pt;}
++a{color:#0000FF;text-decoration:none;}
++table{width:640;}
++td{font-family:arial;font-size:9pt;text-align:center;}
++hr{height:1;}
++</style>
++</head>
++<body bgcolor="#FFE4B5" background="../pic/back.gif">
++<div align="center">
++<p><b>�������</b>
++ <hr color="0000FF">
++<b>Fire Emblem���</b>     
++  <p style="color:#8080FF">
++  <table border="1" cellpadding="0" cellspacing="0" bordercolorlight="#000000" bordercolordark="#FFFFFF">
++    <tr style="color:#F8F050;background:#000868"> 
++      <td colspan="5">SAVE</td>
++    </tr>
++    <tr style="color:#FFFFFF;background:#000000"> 
++      <td colspan="1">��Ϸ����</td>
++      <td>˵��</td>
++      <td width="8%">��С</td>
++      <td width="5%">����</td>
++    </tr>
++    <tr> 
++      <td width="15%">�y�¤��i</td>
++      <td>�²�ÿ��SAVE</td>
++      <td>41KB</td>
++      <td><a href="SAVE/FE0302.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td rowspan="5">�}���ϵ�V</td>
++      <td>24��նSAVE</td>
++      <td>4.90KB</td>
++      <td><a href="SAVE/FE0401.zip">DL</a></td>
++    </tr>
++    <tr> 
++      <td>27��նSAVE</td>
++      <td>3.44KB</td>
++      <td><a href="SAVE/FE0402.zip">DL</a></td>
++    </tr>
++    <tr> 
++      <td>����5A���۵�SAVE</td>
++      <td>1.87KB</td>
++      <td><a href="SAVE/FE0403.zip">DL</a></td>
++    </tr>
++    <tr> 
++      <td>�޸ľȳ��ǰ��򸾵�SAVE����������ȳ��ο�<a href="../fe4/fe4--research/fe4-alvin-killdking.htm"><font color="#FF0000">��ԶƮ���ŵ������</font></a></td>
++      <td>144KB</td>
++      <td><a href="SAVE/FE0404.zip">DL</a></td>
++    </tr>
++    <tr> 
++      <td>����ģʽ5A����¼��</td>
++      <td>6.75MB</td>
++      <td><a href="SAVE/fe4movie.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td>��������776</td>
++      <td>SSS����¼��</td>
++      <td>234KB</td>
++      <td><a href="SAVE/fe05sss.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td rowspan="2">��ӡ�΄�</td>
++      <td>��¶��櫵�����</td>
++      <td>146KB</td>
++      <td><a href="SAVE/FE0701.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td>��������ȫ���SAVE</td>
++      <td>6.81KB</td>
++      <td><a href="SAVE/FE0702.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td>�һ�΄�</td>
++      <td>֧Ԯ��Ԓ�Լ������ռ���100%��SAVE</td>
++      <td>143KB</td>
++      <td><a href="SAVE/FE0801.zip">DL</a></td>
++    </tr>
++    <tr> 
++      <td rowspan="2">�}ħ�ι�ʯ</td>
++      <td>֧Ԯ��Ԓ�ռ���100%��SAVE</td>
++      <td>4.85KB</td>
++      <td><a href="SAVE/FE0901.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td>����ĿSAVE</td>
++      <td>5.21KB</td>
++      <td><a href="SAVE/FE94ZHOU.rar">DL</a></td>
++    </tr>
++	 <tr> 
++      <td>�� ���\�o�ȹ�΄�</td>
++      <td>ȫ�¼��ռ�SAVE</td>
++      <td>10KB</td>
++      <td><a href="SAVE/FE1R.rar">DL</a></td>
++    </tr>
++  </table>
++  <p>&nbsp;</p>
++  <table border="1" cellpadding="0" cellspacing="0" bordercolorlight="#000000" bordercolordark="#FFFFFF">
++    <tr style="color:#F8F050;background:#000868"> 
++      <td colspan="6">�޸���</td>
++    </tr>
++    <tr style="color:#FFFFFF;background:#000000"> 
++      <td colspan="2" width="15%">��Ӧ��Ϸ����</td>
++      <td width="15%">����</td>
++      <td>˵��</td>
++      <td width="7%">��С</td>
++      <td width="8%">����</td>
++    </tr>
++    <tr> 
++      <td colspan="2">�����⴫</td>
++      <td>&nbsp;</td>
++      <td>ROM�޸���</td>
++      <td>4.87MB</td>
++      <td><a href="cheat/FE0201.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td colspan="2">�}���ϵ�V</td>
++      <td>&nbsp;</td>
++      <td>ROM�޸���</td>
++      <td>498KB</td>
++      <td><a href="cheat/FE04C01.zip">DL</a></td>
++    </tr>
++	<tr> 
++      <td colspan="2">��������776</td>
++      <td>��Ҫ����</td>
++      <td><div align="center">ROM�޸���</div></td>
++      <td>598KB</td>
++      <td><a href="cheat/FE776.rar">DL</a></td>
++    </tr>
++	<tr> 
++      <td colspan="2">��ӡ�΄�</td>
++      <td>��Ҫ����</td>
++      <td>ROM�޸���</td>
++      <td>705KB</td>
++      <td><a href="cheat/FE602.rar">DL</a></td>
++    </tr>
++  
++    <tr> 
++      <td colspan="2" rowspan="2">��ӡ�΄�</td>
++      <td>&nbsp;</td>
++      <td>��ǿ����</td>
++      <td>4.61KB</td>
++      <td><a href="cheat/FE07C01.zip">DL</a></td>
++    </tr>
++    <tr> 
++      <td>&nbsp;</td>
++      <td>�桤��¶�����޸���</td>
++      <td>20.1KB</td>
++      <td><a href="cheat/FE07C02.zip">DL</a></td>
++    </tr>
++    <tr> 
++      <td colspan="2">�һ�΄�</td>
++      <td>&nbsp;</td>
++      <td>�޸���</td>
++      <td>6.70KB</td>
++      <td><a href="cheat/FE08C01.rar">DL</a></td>
++    </tr>
++	<tr> 
++      <td colspan="2">�һ�΄�</td>
++      <td>��Ҫ����</td>
++      <td>ROM�޸���</td>
++      <td>614KB</td>
++      <td><a href="cheat/FE702.rar">DL</a></td>
++    </tr>
++  
++    <tr> 
++      <td colspan="2">ʥħ�ι�ʯ</td>
++      <td>���������</td>
++      <td>ʥħ��ʯ���y�Ȳ���</td>
++      <td>7.26KB</td>
++      <td><a href="cheat/FE09C01.rar">DL</a></td>
++    </tr>
++	<tr> 
++      <td colspan="2">ʥħ�ι�ʯ</td>
++      <td>��Ҫ����</td>
++      <td>ROM�޸���</td>
++      <td>740KB</td>
++      <td><a href="cheat/FE802.rar">DL</a></td>
++    </tr>
++	<tr> 
++      <td colspan="2">TRS</td>
++      <td>Dragon-Master <br></td>
++      <td>ROM�޸���</td>
++      <td>3.66MB</td>
++      <td><a href="cheat/TRS.rar">DL</a></td>
++    </tr>
++  </table>
++  <p>&nbsp;</p>
++  <p style="color:#8080FF">
++  <table border="1" cellpadding="0" cellspacing="0" bordercolorlight="#000000" bordercolordark="#FFFFFF">
++    <tr style="color:#F8F050;background:#000868"> 
++      <td colspan="5">�ܱ�</td>
++    </tr>
++    <tr style="color:#FFFFFF;background:#000000"> 
++      <td width="15%">�������</td>
++      <td width="15%">����</td>
++      <td>˵��</td>
++      <td width="7%">��С</td>
++      <td width="8%">����</td>
++    </tr>
++   
++    <tr> 
++      <td>FE1�Ĺ��</td>
++      <td>��</td>
++      <td>FE�Ĺ�棬RM��ʽ</td>
++      <td>857KB</td>
++      <td><a href="zb/FE1_CM.rm">DL</a></td>
++    </tr>
++    <tr> 
++      <td>FE2�Ĺ��</td>
++      <td>��</td>
++      <td>�⴫�Ĺ�棬MPG��ʽ</td>
++      <td>4.83MB</td>
++      <td><a href="zb/FE2_CM.mpg">DL</a></td>
++    </tr>
++    <tr> 
++      <td>����֮�յĹ��</td>
++      <td>��</td>
++      <td>����֮�յĹ�棬AVI��ʽ</td>
++      <td>3.03MB</td>
++      <td><a href="zb/fe3.avi">DL</a></td>
++    </tr>
++    <tr> 
++      <td>ϵ�׵Ĺ��</td>
++      <td>��</td>
++      <td>ϵ�׹�棬MPG��ʽ</td>
++      <td>4.92MB</td>
++      <td><a href="zb/FE4_CM.mpg">DL</a></td>
++    </tr>
++    <tr> 
++      <td rowspan="2">��ӡ�΄����</td>
++      <td>��</td>
++      <td>N��Ϊ��ӡ��Ĺ��</td>
++      <td>806KB</td>
++      <td><a href="zb/FE07A01.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td>��</td>
++      <td>��ӡ�ر���</td>
++      <td>2.52MB</td>
++      <td><a href="zb/FE07A02.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td rowspan="4">�һ�΄��V��</td>
++      <td>��</td>
++      <td>�һ�֮������V��01��WMV��ʽ</td>
++      <td>1.87MB</td>
++      <td><a href="zb/FE7_CM_E_1.wmv">DL</a></td>
++    </tr>
++    <tr> 
++      <td>��</td>
++      <td>�һ�֮������V��02��WMV��ʽ</td>
++      <td>3.91MB</td>
++      <td><a href="zb/FE7_CM_E_2.wmv">DL</a></td>
++    </tr>
++    <tr> 
++      <td>x</td>
++      <td>�һ�֮��2003��E3չ�ϵďV�棬WMV��ʽ</td>
++      <td>6.40MB</td>
++      <td><a href="zb/FE7_E3_2003_CM.wmv">DL</a></td>
++    </tr>
++    <tr> 
++      <td>x</td>
++      <td>�һ�֮�����ӏV�棬MPG��ʽ</td>
++      <td>9.37MB</td>
++      <td><a href="zb/fe7tvcm_jpn.zip">DL</a></td>
++    </tr>
++    <tr> 
++      <td>TRS���</td>
++      <td>��</td>
++      <td>TRS�Ĺ��</td>
++      <td>1.23MB</td>
++      <td><a href="zb/TS01A01.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td>����֮�켣���</td>
++      <td>��</td>
++      <td>����֮�켣���</td>
++      <td>2.7MB</td>
++      <td><a href="zb/FE9TVCM.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td>FE��Ļ���o����</td>
++      <td>����@������</td>
++      <td>FE���}����Ļ���o���mȻ�������c���}....���x����</td>
++      <td>4.13MB</td>
++      <td><a href="zb/fescr.scr">DL</a></td>
++    </tr>
++    <tr> 
++      <td>��ӡ֮���˿�</td>
++      <td>bd2rae</td>
++      <td>��ӡ֮���˿˵��˿��ƣ�bd2rae����</td>
++      <td>1.53MB</td>
++      <td><a href="zb/FE6PAI.rar">DL</a></td>
++    </tr>
++  </table>
++  <p>&nbsp;</p>
++  <table border="1" cellpadding="0" cellspacing="0" bordercolorlight="#000000" bordercolordark="#FFFFFF">
++    <tr style="color:#F8F050;background:#000868"> 
++      <td colspan="5">������Ʒ����</td>
++    </tr>
++    <tr style="color:#FFFFFF;background:#000000"> 
++      <td width="15%">�������</td>
++      <td width="15%">����</td>
++      <td width="55%">˵��</td>
++      <td width="7%">��С</td>
++      <td width="8%">����</td>
++    </tr>
++    <tr> 
++      <td>�⴫����ROM</td>
++      <td>�����������ơ����µ���</td>
++      <td>ģ������ROM��һ���</td>
++      <td>354KB</td>
++      <td><a href="zb/fe2c.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td>����֮�Ժ���ROM</td>
++      <td>�𻨡�����</td>
++      <td>��SFCģ��������</td>
++      <td>1.52MB</td>
++      <td><a href="zb/fe3c.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td>ʥսϵ�׺���IPS</td>
++      <td>��</td>
++      <td>��Ҫ���ԭ�������ʥսϵ��ROMʹ�á�ģ������Ҫʹ��SNES9X1.51��������1.4�汾��</td>
++      <td>269KB</td>
++      <td><a href="zb/fe4c.rar">DL</a></td>
++    </tr>
++	<tr> 
++      <td>ʥսϵ�׺���IPS</td>
++      <td>��</td>
++      <td>��Ҫ���ԭ�������ʥսϵ��ROMʹ�á�ģ������Ҫʹ��SNES9X1.51������棩</td>
++      <td>269KB</td>
++      <td><a href="zb/fe4c2.rar">DL</a></td>
++    <tr> 
++      <td>776����ROM</td>
++      <td>�𻨡�����</td>
++      <td>��Ҫ���ԭ�������776ROMʹ�á�ģ������Ҫʹ��SNES9X1.51</td>
++      <td>2.43MB</td>
++      <td><a href="zb/fe5c.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td>��ӡ֮������IPS</td>
++      <td>�𻨡�����</td>
++      <td>��Ҫ���ԭ������ķ�ӡ֮��ROMʹ�á�</td>
++      <td>564KB</td>
++      <td><a href="zb/fe6c.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td><p>��ӡ֮������X��IPS</p></td>
++      <td>�𻨡�����</td>
++      <td>��Ҫ���ԭ������ķ�ӡ֮��ROMʹ�á�����ȫ�����Ļ��������Ӹ���ģʽ</td>
++      <td>566KB</td>
++      <td><a href="zb/fe6cx.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td><p>�һ�֮������IPS</p></td>
++      <td>�𻨡�����</td>
++      <td>��Ҫ���ԭ��������һ�֮��ROMʹ�á�</td>
++      <td>712KB</td>
++      <td><a href="zb/fe7c.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td>ʥħ֮��ʯ����IPS</td>
++      <td>�𻨡�����</td>
++      <td>��Ҫ���ԭ�������ʥħ֮��ʯROMʹ�á���</td>
++      <td>610KB</td>
++      <td><a href="zb/fe8C.rar">DL</a></td>
++    </tr>
++    <tr> 
++      <td><p>ʥа����־IPS</p></td>
++      <td>�𻨡�����</td>
++      <td>ʥħ֮��ʯͬ����Ϸ��IPS�ļ�����Ҫ���ԭ�������ʥħ֮��ʯROMʹ�á�������Ϊ1.4�汾��</td>
++      <td>710KB</td>
++      <td><a href="zb/feX.rar">DL</a></td>
++    </tr>
++    <tr>
++      <td>����֮�켣��������</td>
++      <td>�𻨡�3DM</td>
++      <td>��Ҫ���ԭ������Ĳ���֮�켣ʹ�á������°汾��1.2��</td>
++      <td>4.63MB</td>
++      <td><a href="zb/FE9CHS1.2.zip">DL</a></td>
++    </tr>
++    <tr>
++      <td>TRS��ָ�ִ�˵��������</td>
++      <td>��</td>
++      <td>��Ҫ���ԭ���TRS��ָ�ִ�˵ISOʹ�á������°汾0.98��</td>
++      <td>17.4MB</td>
++      <td><a href="zb/TRSC.rar">DL</a></td>
++    </tr>
++    <tr>
++      <td>BSW���������ﺺ������</td>
++      <td>��</td>
++      <td>��Ҫ���ԭ���BWS����˴�˵����ISOʹ�á������°汾BETA�棩</td>
++      <td>134.76MB</td>
++      <td><a href="zb/BWSbeta.rar">DL</a></td>
++    </tr>
++  </table>
++  <p>&nbsp;</p>
++  <p style="color:#8080FF"> 
++  <p style="color:#8080FF"> 
++<hr> 
++</div> 
++</body> 
++</html>
+\ No newline at end of file

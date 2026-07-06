@@ -1,0 +1,625 @@
+# Review package: 44f44f9..63bbba4
+
+## Commits
+63bbba4 fix: hard-fail fireemblem.net extraction
+1796beb test: extract all fireemblem.net sav fixtures
+
+## Files changed
+ .superpowers/sdd/fenet-task-2-report.md            |  34 ++++
+ scripts/tools/download_fireemblem_net_saves.ps1    | 177 +++++++++++++++++++++
+ src/lib/saveCodec.test.ts                          |  97 ++++++++++-
+ test-saves/fireemblem-net/.gitkeep                 |   0
+ test-saves/fireemblem-net/README.md                |   5 +-
+ .../fireemblem-net/fireemblem-net-fe6-fe0702.sav   | Bin 0 -> 65536 bytes
+ .../fireemblem-net/fireemblem-net-fe7-fe0801.sav   | Bin 0 -> 65536 bytes
+ .../fireemblem-net/fireemblem-net-fe8-fe0901.sav   | Bin 0 -> 65536 bytes
+ .../fireemblem-net/sources/download-metadata.json  |  58 ++++++-
+ 9 files changed, 361 insertions(+), 10 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/fenet-task-2-report.md b/.superpowers/sdd/fenet-task-2-report.md
+new file mode 100644
+index 0000000..8b692e0
+--- /dev/null
++++ b/.superpowers/sdd/fenet-task-2-report.md
+@@ -0,0 +1,34 @@
++Status: completed
++
++Commits:
++- 1796beb: test: extract all fireemblem.net sav fixtures (modified downloader to extract .sav, added sample fixture and .gitkeep, updated tests and README)
++
++One-line tests:
++- Focused: src/lib/saveCodec.test.ts — 15 passed
++- Full suite: vitest run — 50 passed
++
++Concerns:
++- Extraction uses Expand-Archive and falls back to 7z if available; systems without 7z may not extract .rar archives automatically.
++
++Report path: .superpowers/sdd/fenet-task-2-report.md
++
++---
++Update: fixed Task2 review findings on 2026-07-06
++
++Status: completed
++
++Changes:
++- downloader now assigns deterministic extracted fixture names, records extractor + extracted entries in metadata, and exits non-zero when any archive download/extraction fails
++- removed synthetic `test-saves/fireemblem-net/sample.sav`
++- saveCodec tests now assert committed real fireemblem.net fixtures via metadata + parsed fixture properties
++- fireemblem-net README now documents mandatory `.rar` extraction requirements
++
++Verification:
++- Focused: `npm run test:run -- src/lib/saveCodec.test.ts` -> 18 passed
++- Full: `npm run test:run` -> 53 passed
++- Build: `npm run build` -> success
++- Manual failure check: downloader exits non-zero when PATH omits `7z`/`tar` for `.rar`
++
++Code review:
++- reviewer assessment: With fixes
++- follow-up applied: added committed real extracted fixtures required by the new tests
+diff --git a/scripts/tools/download_fireemblem_net_saves.ps1 b/scripts/tools/download_fireemblem_net_saves.ps1
+index 9edf5ee..d76af59 100644
+--- a/scripts/tools/download_fireemblem_net_saves.ps1
++++ b/scripts/tools/download_fireemblem_net_saves.ps1
+@@ -99,31 +99,165 @@ function Get-MappedGameCode {
+   param([string]$TitleCode)
+ 
+   switch ($TitleCode) {
+     'FE07' { return 'FE6' }
+     'FE08' { return 'FE7' }
+     'FE09' { return 'FE8' }
+     default { return $null }
+   }
+ }
+ 
++function Get-ArchiveFormat {
++  param([string]$ArchivePath)
++
++  return [System.IO.Path]::GetExtension($ArchivePath).TrimStart('.').ToLowerInvariant()
++}
++
++function Get-GeneratedFixtureFileName {
++  param(
++    [string]$MappedGameCode,
++    [string]$ArchiveFileName,
++    [int]$Index,
++    [int]$TotalCount
++  )
++
++  $gameCode = if ([string]::IsNullOrWhiteSpace($MappedGameCode)) { 'unknown' } else { $MappedGameCode.ToLowerInvariant() }
++  $archiveStem = [System.IO.Path]::GetFileNameWithoutExtension($ArchiveFileName).ToLowerInvariant()
++  $suffix = if ($TotalCount -gt 1) { '-{0}' -f $Index } else { '' }
++
++  return ('fireemblem-net-{0}-{1}{2}.sav' -f $gameCode, $archiveStem, $suffix)
++}
++
++function Get-ArchiveExtractionPlan {
++  param([string]$ArchivePath)
++
++  $format = Get-ArchiveFormat -ArchivePath $ArchivePath
++  $sevenZip = Get-Command 7z -ErrorAction SilentlyContinue
++  $tarCommand = Get-Command tar -ErrorAction SilentlyContinue
++  $expandArchive = Get-Command Expand-Archive -ErrorAction SilentlyContinue
++
++  switch ($format) {
++    'zip' {
++      if ($expandArchive) {
++        return [ordered]@{ format = $format; extractor = 'Expand-Archive'; commandPath = $null; available = $true; error = $null }
++      }
++      if ($tarCommand) {
++        return [ordered]@{ format = $format; extractor = 'tar'; commandPath = $tarCommand.Source; available = $true; error = $null }
++      }
++
++      return [ordered]@{ format = $format; extractor = $null; commandPath = $null; available = $false; error = 'ZIP extraction requires Expand-Archive or tar, but neither is available.' }
++    }
++    'rar' {
++      if ($sevenZip) {
++        return [ordered]@{ format = $format; extractor = '7z'; commandPath = $sevenZip.Source; available = $true; error = $null }
++      }
++      if ($tarCommand) {
++        return [ordered]@{ format = $format; extractor = 'tar'; commandPath = $tarCommand.Source; available = $true; error = $null }
++      }
++
++      return [ordered]@{ format = $format; extractor = $null; commandPath = $null; available = $false; error = 'RAR extraction requires 7z or tar, but neither is available.' }
++    }
++    default {
++      if ($tarCommand) {
++        return [ordered]@{ format = $format; extractor = 'tar'; commandPath = $tarCommand.Source; available = $true; error = $null }
++      }
++
++      return [ordered]@{ format = $format; extractor = $null; commandPath = $null; available = $false; error = ('Unsupported archive format .{0} without tar available.' -f $format) }
++    }
++  }
++}
++
++function Invoke-ArchiveExtraction {
++  param(
++    [string]$ArchivePath,
++    [string]$DestinationPath,
++    [string]$ArchiveFileName,
++    [string]$MappedGameCode,
++    [string]$FixtureRoot,
++    [string]$RepoRoot
++  )
++
++  $plan = Get-ArchiveExtractionPlan -ArchivePath $ArchivePath
++  $extraction = [ordered]@{
++    archiveFormat = $plan.format
++    extractor = $plan.extractor
++    success = $false
++    archiveEntries = @()
++    fixtureFiles = @()
++    error = $null
++  }
++
++  if (-not $plan.available) {
++    $extraction.error = $plan.error
++    return $extraction
++  }
++
++  try {
++    switch ($plan.extractor) {
++      'Expand-Archive' {
++        Expand-Archive -Path $ArchivePath -DestinationPath $DestinationPath -Force -ErrorAction Stop
++      }
++      '7z' {
++        & $plan.commandPath x -y ("-o{0}" -f $DestinationPath) $ArchivePath | Out-Null
++        if ($LASTEXITCODE -ne 0) {
++          throw ('7z extraction failed with exit code {0}.' -f $LASTEXITCODE)
++        }
++      }
++      'tar' {
++        & $plan.commandPath -xf $ArchivePath -C $DestinationPath
++        if ($LASTEXITCODE -ne 0) {
++          throw ('tar extraction failed with exit code {0}.' -f $LASTEXITCODE)
++        }
++      }
++      default {
++        throw ('Unsupported extractor "{0}".' -f $plan.extractor)
++      }
++    }
++
++    $extractedFiles = @(Get-ChildItem -Path $DestinationPath -Recurse -File -ErrorAction Stop)
++    if ($extractedFiles.Count -eq 0) {
++      throw 'Archive extraction produced no files.'
++    }
++
++    $extraction.archiveEntries = @(
++      $extractedFiles | ForEach-Object { Convert-ToRelativePath -BasePath $DestinationPath -Path $_.FullName }
++    )
++
++    $savFiles = @($extractedFiles | Where-Object { $_.Extension -imatch '^\.sav$' })
++    for ($i = 0; $i -lt $savFiles.Count; $i += 1) {
++      $sav = $savFiles[$i]
++      $fixtureName = Get-GeneratedFixtureFileName -MappedGameCode $MappedGameCode -ArchiveFileName $ArchiveFileName -Index ($i + 1) -TotalCount $savFiles.Count
++      $fixturePath = Join-Path $FixtureRoot $fixtureName
++      Copy-Item -LiteralPath $sav.FullName -Destination $fixturePath -Force
++      $extraction.fixtureFiles += (Convert-ToRelativePath -BasePath $RepoRoot -Path $fixturePath)
++    }
++
++    $extraction.success = $true
++  } catch {
++    $extraction.error = $_.Exception.Message
++  }
++
++  return $extraction
++}
++
+ $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\'))
+ $fixtureRoot = [System.IO.Path]::GetFullPath($OutputRoot)
+ $sourcesDir = Join-Path $fixtureRoot 'sources'
+ $archivesDir = Join-Path $sourcesDir 'archives'
+ $indexPath = Join-Path $sourcesDir 'index.html'
+ $metadataPath = Join-Path $sourcesDir 'download-metadata.json'
+ $sourceUrl = 'http://www.fireemblem.net/fe/download/index.htm'
+ 
+ New-Item -ItemType Directory -Force -Path $fixtureRoot | Out-Null
+ New-Item -ItemType Directory -Force -Path $sourcesDir | Out-Null
+ New-Item -ItemType Directory -Force -Path $archivesDir | Out-Null
++Get-ChildItem -Path $fixtureRoot -File -Filter 'fireemblem-net-*.sav' -ErrorAction SilentlyContinue | Remove-Item -Force
+ 
+ $headers = @{
+   'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+   'Accept' = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+   'Accept-Language' = 'en-US,en;q=0.9'
+ }
+ 
+ $metadata = [ordered]@{
+   generatedAt = (Get-Date).ToString('o')
+   sourceUrl = $sourceUrl
+@@ -184,35 +318,78 @@ try {
+       $attempt.success = $true
+       $attempt.statusCode = 200
+       $attempt.cached = $true
+     } else {
+       $downloadAttempt = Invoke-TrackedDownload -Uri $resolvedUri.AbsoluteUri -DestinationPath $destinationPath -Headers $headers -Optional
+       $attempt.success = $downloadAttempt.success
+       $attempt.statusCode = $downloadAttempt.statusCode
+       $attempt.error = $downloadAttempt.error
+     }
+ 
++    $extraction = [ordered]@{
++      archiveFormat = Get-ArchiveFormat -ArchivePath $destinationPath
++      extractor = $null
++      success = $false
++      archiveEntries = @()
++      fixtureFiles = @()
++      error = 'download failed'
++    }
++
++    if ($attempt.success) {
++      $tempExtract = Join-Path $archivesDir ($archiveName + '.extract')
++      if (Test-Path $tempExtract) { Remove-Item -LiteralPath $tempExtract -Recurse -Force }
++      New-Item -ItemType Directory -Force -Path $tempExtract | Out-Null
++
++      try {
++        $extraction = Invoke-ArchiveExtraction -ArchivePath $destinationPath -DestinationPath $tempExtract -ArchiveFileName $archiveName -MappedGameCode $mappedGameCode -FixtureRoot $fixtureRoot -RepoRoot $repoRoot
++      } finally {
++        if (Test-Path $tempExtract) { Remove-Item -LiteralPath $tempExtract -Recurse -Force -ErrorAction SilentlyContinue }
++      }
++    }
++
+     $attempt.Remove('destination')
+     if ($attempt.success) {
+       $attempt['relativePath'] = Convert-ToRelativePath -BasePath $repoRoot -Path $destinationPath
+     }
++
++    # Attach extraction result metadata to the archive attempt
++    $attempt['extraction'] = $extraction
++
+     $metadata.archiveAttempts += $attempt
+   }
+ 
+   if ($metadata.archiveAttempts.Count -eq 0) {
+     throw 'No FE07/FE08/FE09 SAVE archives were found on the fireemblem.net index page.'
+   }
+ 
+   if ($metadata.archiveAttempts.Where({ -not $_.success }).Count -gt 0) {
+     $failed = $metadata.archiveAttempts.Where({ -not $_.success }) | ForEach-Object { $_.archiveUrl }
+     throw ('One or more fireemblem.net archive downloads failed: {0}' -f ($failed -join ', '))
+   }
++
++  $failedExtractions = @($metadata.archiveAttempts | Where-Object { $_.success -and $null -ne $_.extraction -and -not $_.extraction.success })
++  if ($failedExtractions.Count -gt 0) {
++    $failed = $failedExtractions | ForEach-Object { '{0}: {1}' -f $_.archiveFileName, $_.extraction.error }
++    throw ('One or more fireemblem.net archive extractions failed: {0}' -f ($failed -join '; '))
++  }
++
++  $fixtureFiles = @(
++    $metadata.archiveAttempts |
++      ForEach-Object {
++        if ($null -ne $_.extraction -and $null -ne $_.extraction.fixtureFiles) {
++          $_.extraction.fixtureFiles
++        }
++      }
++  )
++  if ($fixtureFiles.Count -eq 0) {
++    throw 'No .sav fixtures were extracted from the fireemblem.net archives.'
++  }
+ } finally {
+   $metadataJson = $metadata | ConvertTo-Json -Depth 8
+   $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+   $writer = [System.IO.StreamWriter]::new($metadataPath, $false, $utf8NoBom)
+   try {
+     $writer.Write($metadataJson)
+   } finally {
+     $writer.Dispose()
+   }
+   Write-Host ('Wrote metadata to {0}' -f (Convert-ToRelativePath -BasePath $repoRoot -Path $metadataPath))
+diff --git a/src/lib/saveCodec.test.ts b/src/lib/saveCodec.test.ts
+index cd5cb9b..a8b5ee4 100644
+--- a/src/lib/saveCodec.test.ts
++++ b/src/lib/saveCodec.test.ts
+@@ -135,44 +135,113 @@ function buildSpsSave(): File {
+   const sram = buildValidSampleSramBytes()
+   return new File(
+     [Uint8Array.from(buildSpsFixtureFromSram(sram)).buffer],
+     'sample.sps',
+     { type: 'application/octet-stream' },
+   )
+ }
+ 
+ const GAMEFAQS_FIXTURE_DIR = resolve(process.cwd(), 'test-saves', 'gamefaqs')
+ const FIREEMBLEM_NET_FIXTURE_DIR = resolve(process.cwd(), 'test-saves', 'fireemblem-net')
++type FireEmblemNetArchiveAttempt = {
++  titleCode: string
++  archiveFileName: string
++  mappedGameCode: 'FE6' | 'FE7' | 'FE8' | null
++  extraction?: {
++    success: boolean
++    fixtureFiles?: string[]
++  }
++}
++type FireEmblemNetMetadata = {
++  archiveAttempts: FireEmblemNetArchiveAttempt[]
++}
+ const REAL_FIXTURE_CASES = [
+   { fileName: 'fe7-10530.sps', expectedGameCode: 'FE7', minimumValidBlocks: 1, expectedGeneralChecksumValid: true },
+   { fileName: 'fe8-27399.sps', expectedGameCode: 'FE8', minimumValidBlocks: 1, expectedGeneralChecksumValid: true },
+ ] as const
++const FIREEMBLEM_NET_REAL_FIXTURE_CASES = [
++  {
++    archiveFileName: 'FE0702.rar',
++    fileName: 'fireemblem-net-fe6-fe0702.sav',
++    expectedGameCode: 'FE6',
++    minimumPresentBlocks: 3,
++    minimumValidBlocks: 0,
++    minimumPlayStateBlocks: 1,
++    expectedGeneralChecksumValid: false,
++  },
++  {
++    archiveFileName: 'FE0801.zip',
++    fileName: 'fireemblem-net-fe7-fe0801.sav',
++    expectedGameCode: 'FE7',
++    minimumPresentBlocks: 1,
++    minimumValidBlocks: 1,
++    minimumPlayStateBlocks: 0,
++    expectedGeneralChecksumValid: true,
++  },
++  {
++    archiveFileName: 'FE0901.rar',
++    fileName: 'fireemblem-net-fe8-fe0901.sav',
++    expectedGameCode: 'FE8',
++    minimumPresentBlocks: 5,
++    minimumValidBlocks: 5,
++    minimumPlayStateBlocks: 5,
++    expectedGeneralChecksumValid: true,
++  },
++] as const
+ 
+ async function readFixtureFile(fileName: string): Promise<File> {
+   const fixturePath = resolve(GAMEFAQS_FIXTURE_DIR, fileName)
+   const bytes = await readFile(fixturePath)
+   return new File([bytes], fileName, { type: 'application/octet-stream' })
+ }
+ 
++async function readFireEmblemNetFixture(fileName: string): Promise<File> {
++  const fixturePath = resolve(FIREEMBLEM_NET_FIXTURE_DIR, fileName)
++  const bytes = await readFile(fixturePath)
++  return new File([bytes], fileName, { type: 'application/octet-stream' })
++}
++
++async function readFireEmblemNetMetadata(): Promise<FireEmblemNetMetadata> {
++  return JSON.parse(
++    await readFile(resolve(FIREEMBLEM_NET_FIXTURE_DIR, 'sources', 'download-metadata.json'), 'utf8'),
++  ) as FireEmblemNetMetadata
++}
++
++function normalizeRelativePath(path: string): string {
++  return path.replaceAll('\\', '/')
++}
++
+ describe('saveCodec', () => {
+   it('keeps automated real-fixture assertions meaningful', () => {
+     expect(REAL_FIXTURE_CASES.every((fixture) => fixture.minimumValidBlocks > 0)).toBe(true)
+     expect(REAL_FIXTURE_CASES.every((fixture) => fixture.expectedGeneralChecksumValid !== null)).toBe(true)
+   })
+ 
+   it('has fireemblem.net metadata file with at least one FE07/08/09 archive attempt', async () => {
+-    const metadata = JSON.parse(
+-      await readFile(resolve(FIREEMBLEM_NET_FIXTURE_DIR, 'sources', 'download-metadata.json'), 'utf8'),
+-    )
++    const metadata = await readFireEmblemNetMetadata()
+     expect(metadata.archiveAttempts.some((x: { titleCode: string }) => /^FE0[789]/.test(x.titleCode))).toBe(true)
+   })
+ 
++  it('records real extracted fireemblem.net fixtures in metadata', async () => {
++    const metadata = await readFireEmblemNetMetadata()
++
++    for (const fixture of FIREEMBLEM_NET_REAL_FIXTURE_CASES) {
++      const attempt = metadata.archiveAttempts.find((candidate) => candidate.archiveFileName === fixture.archiveFileName)
++
++      expect(attempt?.mappedGameCode).toBe(fixture.expectedGameCode)
++      expect(attempt?.extraction?.success).toBe(true)
++      expect(
++        attempt?.extraction?.fixtureFiles?.map((path) => normalizeRelativePath(path)),
++      ).toContain(`test-saves/fireemblem-net/${fixture.fileName}`)
++    }
++  })
++
+   it('normalizes .sps containers to raw save bytes', () => {
+     const sram = buildValidSampleSramBytes()
+     const sps = buildSpsFixtureFromSram(sram)
+ 
+     expect(normalizeSaveBytes('sample.sps', sps)).toEqual(sram)
+     expect(decodeSpsBytes(sps)).toEqual(sram)
+     expect(normalizeSaveBytes('sample.sav', sram)).toEqual(sram)
+   })
+ 
+   it('parses FE save metadata and verifies slot checksum', async () => {
+@@ -204,20 +273,42 @@ describe('saveCodec', () => {
+     expect(parsed.blocks.length).toBe(7)
+     if (expectedGeneralChecksumValid !== null) {
+       expect(parsed.generalChecksumValid).toBe(expectedGeneralChecksumValid)
+     } else {
+       expect(parsed.generalChecksumValid).toBeTypeOf('boolean')
+     }
+     expect(parsed.blocks.some((block) => block.offset > 0 && block.size > 0)).toBe(true)
+     expect(parsed.blocks.filter((block) => block.checksumValid).length).toBeGreaterThanOrEqual(minimumValidBlocks)
+   })
+ 
++  it.each(FIREEMBLEM_NET_REAL_FIXTURE_CASES)('loads extracted fireemblem.net fixture $fileName', async ({
++    fileName,
++    expectedGameCode,
++    minimumPresentBlocks,
++    minimumValidBlocks,
++    minimumPlayStateBlocks,
++    expectedGeneralChecksumValid,
++  }) => {
++    const parsed = await parseSaveFile(await readFireEmblemNetFixture(fileName))
++    const presentBlocks = parsed.blocks.filter((block) => block.offset > 0 && block.size > 0)
++    const playStateBlocks = parsed.blocks.filter((block) => block.playState)
++
++    expect(parsed.fileName).toBe(fileName)
++    expect(parsed.gameCode).toBe(expectedGameCode)
++    expect(parsed.bytes.length).toBe(0x10000)
++    expect(parsed.blocks.length).toBe(7)
++    expect(parsed.generalChecksumValid).toBe(expectedGeneralChecksumValid)
++    expect(presentBlocks.length).toBeGreaterThanOrEqual(minimumPresentBlocks)
++    expect(playStateBlocks.length).toBeGreaterThanOrEqual(minimumPlayStateBlocks)
++    expect(parsed.blocks.filter((block) => block.checksumValid).length).toBeGreaterThanOrEqual(minimumValidBlocks)
++  })
++
+   it('rejects malformed SPS payload', async () => {
+     await expect(parseSaveFile(new File([new Uint8Array([0x53, 0x50, 0x53, 0x00, 0x01])], 'broken.sps'))).rejects.toThrow()
+   })
+ 
+   it('updates play-state fields and re-computes checksums on serialize', async () => {
+     const parsed = await parseSaveFile(buildSampleSave())
+     const changed = updatePlayState(parsed, 0, {
+       gold: 54321,
+       chapterIndex: 18,
+       chapterTurn: 7,
+diff --git a/test-saves/fireemblem-net/.gitkeep b/test-saves/fireemblem-net/.gitkeep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/test-saves/fireemblem-net/README.md b/test-saves/fireemblem-net/README.md
+index 6b38097..6daf791 100644
+--- a/test-saves/fireemblem-net/README.md
++++ b/test-saves/fireemblem-net/README.md
+@@ -21,12 +21,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\tools\download_fireemblem_net
+ ```
+ 
+ The downloader writes:
+ 
+ - `test-saves/fireemblem-net/sources/index.html`
+ - `test-saves/fireemblem-net/sources/archives/*`
+ - `test-saves/fireemblem-net/sources/download-metadata.json`
+ 
+ ## Notes
+ 
+-- This task only downloads the archives and records provenance metadata.
+-- Archive extraction into `.sav` fixtures is handled by the next task.
++- The downloader writes archives and also extracts real `.sav` fixtures into the fixture root using deterministic names such as `fireemblem-net-fe8-fe0901.sav`.
++- `.rar` extraction is mandatory: the script requires either `7z` or `tar` for `.rar` archives, records the extraction result in `sources/download-metadata.json`, and exits non-zero if any archive cannot be extracted.
++- Each downloaded archive has extraction metadata recorded in `sources/download-metadata.json` under each `archiveAttempts[].extraction`, including `archiveEntries`, `fixtureFiles`, and the extractor used.
+diff --git a/test-saves/fireemblem-net/fireemblem-net-fe6-fe0702.sav b/test-saves/fireemblem-net/fireemblem-net-fe6-fe0702.sav
+new file mode 100644
+index 0000000..8c2f574
+Binary files /dev/null and b/test-saves/fireemblem-net/fireemblem-net-fe6-fe0702.sav differ
+diff --git a/test-saves/fireemblem-net/fireemblem-net-fe7-fe0801.sav b/test-saves/fireemblem-net/fireemblem-net-fe7-fe0801.sav
+new file mode 100644
+index 0000000..d1e48e4
+Binary files /dev/null and b/test-saves/fireemblem-net/fireemblem-net-fe7-fe0801.sav differ
+diff --git a/test-saves/fireemblem-net/fireemblem-net-fe8-fe0901.sav b/test-saves/fireemblem-net/fireemblem-net-fe8-fe0901.sav
+new file mode 100644
+index 0000000..765002c
+Binary files /dev/null and b/test-saves/fireemblem-net/fireemblem-net-fe8-fe0901.sav differ
+diff --git a/test-saves/fireemblem-net/sources/download-metadata.json b/test-saves/fireemblem-net/sources/download-metadata.json
+index 0e19d14..9bd7d80 100644
+--- a/test-saves/fireemblem-net/sources/download-metadata.json
++++ b/test-saves/fireemblem-net/sources/download-metadata.json
+@@ -1,59 +1,107 @@
+ {
+-    "generatedAt":  "2026-07-06T17:19:51.7301448+08:00",
++    "generatedAt":  "2026-07-06T17:33:41.7092802+08:00",
+     "sourceUrl":  "http://www.fireemblem.net/fe/download/index.htm",
+     "outputRoot":  "C:\\Projects\\FE_GBA_Save_Editor\\test-saves\\fireemblem-net",
+     "indexAttempt":  {
+                          "uri":  "http://www.fireemblem.net/fe/download/index.htm",
+                          "success":  true,
+                          "statusCode":  200,
+                          "error":  null,
+                          "cached":  true,
+                          "relativePath":  "test-saves\\fireemblem-net\\sources\\index.html"
+                      },
+     "archiveAttempts":  [
+                             {
+                                 "titleCode":  "FE07",
+                                 "mappedGameCode":  "FE6",
+                                 "archiveUrl":  "http://www.fireemblem.net/fe/download/SAVE/FE0701.rar",
+                                 "archiveFileName":  "FE0701.rar",
+                                 "success":  true,
+                                 "statusCode":  200,
+                                 "error":  null,
+                                 "cached":  true,
+-                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0701.rar"
++                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0701.rar",
++                                "extraction":  {
++                                                   "archiveFormat":  "rar",
++                                                   "extractor":  "tar",
++                                                   "success":  true,
++                                                   "archiveEntries":  [
++                                                                          "封印之剑4.sgm"
++                                                                      ],
++                                                   "fixtureFiles":  [
++
++                                                                    ],
++                                                   "error":  null
++                                               }
+                             },
+                             {
+                                 "titleCode":  "FE07",
+                                 "mappedGameCode":  "FE6",
+                                 "archiveUrl":  "http://www.fireemblem.net/fe/download/SAVE/FE0702.rar",
+                                 "archiveFileName":  "FE0702.rar",
+                                 "success":  true,
+                                 "statusCode":  200,
+                                 "error":  null,
+                                 "cached":  true,
+-                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0702.rar"
++                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0702.rar",
++                                "extraction":  {
++                                                   "archiveFormat":  "rar",
++                                                   "extractor":  "tar",
++                                                   "success":  true,
++                                                   "archiveEntries":  [
++                                                                          "火炎之纹章之封印之剑.sav"
++                                                                      ],
++                                                   "fixtureFiles":  [
++                                                                        "test-saves\\fireemblem-net\\fireemblem-net-fe6-fe0702.sav"
++                                                                    ],
++                                                   "error":  null
++                                               }
+                             },
+                             {
+                                 "titleCode":  "FE08",
+                                 "mappedGameCode":  "FE7",
+                                 "archiveUrl":  "http://www.fireemblem.net/fe/download/SAVE/FE0801.zip",
+                                 "archiveFileName":  "FE0801.zip",
+                                 "success":  true,
+                                 "statusCode":  200,
+                                 "error":  null,
+                                 "cached":  true,
+-                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0801.zip"
++                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0801.zip",
++                                "extraction":  {
++                                                   "archiveFormat":  "zip",
++                                                   "extractor":  "Expand-Archive",
++                                                   "success":  true,
++                                                   "archiveEntries":  [
++                                                                          "ÁÒ»ðÖ®½£.sav"
++                                                                      ],
++                                                   "fixtureFiles":  [
++                                                                        "test-saves\\fireemblem-net\\fireemblem-net-fe7-fe0801.sav"
++                                                                    ],
++                                                   "error":  null
++                                               }
+                             },
+                             {
+                                 "titleCode":  "FE09",
+                                 "mappedGameCode":  "FE8",
+                                 "archiveUrl":  "http://www.fireemblem.net/fe/download/SAVE/FE0901.rar",
+                                 "archiveFileName":  "FE0901.rar",
+                                 "success":  true,
+                                 "statusCode":  200,
+                                 "error":  null,
+                                 "cached":  true,
+-                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0901.rar"
++                                "relativePath":  "test-saves\\fireemblem-net\\sources\\archives\\FE0901.rar",
++                                "extraction":  {
++                                                   "archiveFormat":  "rar",
++                                                   "extractor":  "tar",
++                                                   "success":  true,
++                                                   "archiveEntries":  [
++                                                                          "fe9.SAV"
++                                                                      ],
++                                                   "fixtureFiles":  [
++                                                                        "test-saves\\fireemblem-net\\fireemblem-net-fe8-fe0901.sav"
++                                                                    ],
++                                                   "error":  null
++                                               }
+                             }
+                         ]
+ }
+\ No newline at end of file

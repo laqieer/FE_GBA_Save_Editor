@@ -1,0 +1,199 @@
+# Review package: 0152d68..0f5c6ec
+
+## Commits
+0f5c6ec test: add fireemblem.net sav parser coverage
+
+## Files changed
+ README.md                           |  6 ++++++
+ src/lib/saveCodec.test.ts           | 36 +++++++++++++++++++++++++++++++++++-
+ test-saves/fireemblem-net/README.md | 10 +++++++++-
+ 3 files changed, 50 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/README.md b/README.md
+index 2e46296..876ec4c 100644
+--- a/README.md
++++ b/README.md
+@@ -43,17 +43,23 @@ npm run build
+ ```
+ 
+ ## Real-world fixture workflow
+ 
+ Deterministic `.sps` regression fixtures live in `test-saves/gamefaqs/`.
+ 
+ - Refresh them with `powershell -ExecutionPolicy Bypass -File .\scripts\tools\download_gamefaqs_saves.ps1 -Force`
+ - The script tries the three requested GameFAQs save pages first, then records `403 Forbidden` evidence and falls back to Archive.org's `gba_savegames.zip` mirror when direct access is blocked
+ - Provenance, selected fixture notes, and refresh details are documented in `test-saves/gamefaqs/README.md`
+ 
++Deterministic `.sav` regression fixtures live in `test-saves/fireemblem-net/`.
++
++- Refresh them with `powershell -ExecutionPolicy Bypass -File .\scripts\tools\download_fireemblem_net_saves.ps1 -Force`
++- The downloader maps FE07/FE08/FE09 archives to FE6/FE7/FE8 and extracts every committed `.sav` payload
++- Provenance, extraction notes, and the current fixture count are documented in `test-saves/fireemblem-net/README.md`
++
+ ## GitHub Pages
+ 
+ Live site: <https://laqieer.github.io/FE_GBA_Save_Editor/>
+ 
+ 1. Push to `main`.
+ 2. In repository settings, set **Pages** source to **GitHub Actions**.
+ 3. Workflow `.github/workflows/deploy-pages.yml` builds and deploys `dist/`.
+diff --git a/src/lib/saveCodec.test.ts b/src/lib/saveCodec.test.ts
+index a8b5ee4..c4af236 100644
+--- a/src/lib/saveCodec.test.ts
++++ b/src/lib/saveCodec.test.ts
+@@ -1,12 +1,12 @@
+ import { readFile } from 'node:fs/promises'
+-import { resolve } from 'node:path'
++import { basename, resolve } from 'node:path'
+ import { describe, expect, it } from 'vitest'
+ import {
+   SAVE_CODEC_ERROR_KEYS,
+   decodeSpsBytes,
+   normalizeSaveBytes,
+   parseSaveFile,
+   readBlockBytes,
+   serializeSaveFile,
+   updatePlayState,
+   updateBlockBytes,
+@@ -147,20 +147,24 @@ type FireEmblemNetArchiveAttempt = {
+   archiveFileName: string
+   mappedGameCode: 'FE6' | 'FE7' | 'FE8' | null
+   extraction?: {
+     success: boolean
+     fixtureFiles?: string[]
+   }
+ }
+ type FireEmblemNetMetadata = {
+   archiveAttempts: FireEmblemNetArchiveAttempt[]
+ }
++type FireEmblemNetExtractedFixture = {
++  filePath: string
++  mappedGameCode: 'FE6' | 'FE7' | 'FE8'
++}
+ const REAL_FIXTURE_CASES = [
+   { fileName: 'fe7-10530.sps', expectedGameCode: 'FE7', minimumValidBlocks: 1, expectedGeneralChecksumValid: true },
+   { fileName: 'fe8-27399.sps', expectedGameCode: 'FE8', minimumValidBlocks: 1, expectedGeneralChecksumValid: true },
+ ] as const
+ const FIREEMBLEM_NET_REAL_FIXTURE_CASES = [
+   {
+     archiveFileName: 'FE0702.rar',
+     fileName: 'fireemblem-net-fe6-fe0702.sav',
+     expectedGameCode: 'FE6',
+     minimumPresentBlocks: 3,
+@@ -203,20 +207,34 @@ async function readFireEmblemNetFixture(fileName: string): Promise<File> {
+ async function readFireEmblemNetMetadata(): Promise<FireEmblemNetMetadata> {
+   return JSON.parse(
+     await readFile(resolve(FIREEMBLEM_NET_FIXTURE_DIR, 'sources', 'download-metadata.json'), 'utf8'),
+   ) as FireEmblemNetMetadata
+ }
+ 
+ function normalizeRelativePath(path: string): string {
+   return path.replaceAll('\\', '/')
+ }
+ 
++function getFireEmblemNetExtractedFixtures(metadata: FireEmblemNetMetadata): FireEmblemNetExtractedFixture[] {
++  return metadata.archiveAttempts.flatMap((attempt) => {
++    const mappedGameCode = attempt.mappedGameCode
++    if (mappedGameCode === null || !attempt.extraction?.fixtureFiles) {
++      return []
++    }
++
++    return attempt.extraction.fixtureFiles.map((fixtureFile) => ({
++      filePath: normalizeRelativePath(fixtureFile),
++      mappedGameCode,
++    }))
++  })
++}
++
+ describe('saveCodec', () => {
+   it('keeps automated real-fixture assertions meaningful', () => {
+     expect(REAL_FIXTURE_CASES.every((fixture) => fixture.minimumValidBlocks > 0)).toBe(true)
+     expect(REAL_FIXTURE_CASES.every((fixture) => fixture.expectedGeneralChecksumValid !== null)).toBe(true)
+   })
+ 
+   it('has fireemblem.net metadata file with at least one FE07/08/09 archive attempt', async () => {
+     const metadata = await readFireEmblemNetMetadata()
+     expect(metadata.archiveAttempts.some((x: { titleCode: string }) => /^FE0[789]/.test(x.titleCode))).toBe(true)
+   })
+@@ -228,20 +246,36 @@ describe('saveCodec', () => {
+       const attempt = metadata.archiveAttempts.find((candidate) => candidate.archiveFileName === fixture.archiveFileName)
+ 
+       expect(attempt?.mappedGameCode).toBe(fixture.expectedGameCode)
+       expect(attempt?.extraction?.success).toBe(true)
+       expect(
+         attempt?.extraction?.fixtureFiles?.map((path) => normalizeRelativePath(path)),
+       ).toContain(`test-saves/fireemblem-net/${fixture.fileName}`)
+     }
+   })
+ 
++  it('parses every fireemblem.net sav fixture with mapped FE code', async () => {
++    const metadata = await readFireEmblemNetMetadata()
++    const fixtures = getFireEmblemNetExtractedFixtures(metadata)
++
++    expect(fixtures.length).toBeGreaterThan(0)
++
++    for (const fixture of fixtures) {
++      const bytes = await readFile(resolve(process.cwd(), fixture.filePath))
++      const parsed = await parseSaveFile(
++        new File([bytes], basename(fixture.filePath), { type: 'application/octet-stream' }),
++      )
++
++      expect(parsed.gameCode).toBe(fixture.mappedGameCode)
++    }
++  })
++
+   it('normalizes .sps containers to raw save bytes', () => {
+     const sram = buildValidSampleSramBytes()
+     const sps = buildSpsFixtureFromSram(sram)
+ 
+     expect(normalizeSaveBytes('sample.sps', sps)).toEqual(sram)
+     expect(decodeSpsBytes(sps)).toEqual(sram)
+     expect(normalizeSaveBytes('sample.sav', sram)).toEqual(sram)
+   })
+ 
+   it('parses FE save metadata and verifies slot checksum', async () => {
+diff --git a/test-saves/fireemblem-net/README.md b/test-saves/fireemblem-net/README.md
+index 6daf791..2c94a25 100644
+--- a/test-saves/fireemblem-net/README.md
++++ b/test-saves/fireemblem-net/README.md
+@@ -1,19 +1,19 @@
+ # fireemblem.net SAVE archives
+ 
+ This fixture source crawls the `SAVE` section at:
+ 
+ `http://www.fireemblem.net/fe/download/index.htm`
+ 
+ ## FE numbering
+ 
+-The site labels the relevant archives as `FE07`, `FE08`, and `FE09`, which map to the editor's supported games as:
++The site uses +1 FE numbering for the relevant archives. `FE07`, `FE08`, and `FE09` map to the editor's supported games as:
+ 
+ - `FE07` → `FE6`
+ - `FE08` → `FE7`
+ - `FE09` → `FE8`
+ 
+ ## Refresh workflow
+ 
+ From the repository root:
+ 
+ ```powershell
+@@ -24,10 +24,18 @@ The downloader writes:
+ 
+ - `test-saves/fireemblem-net/sources/index.html`
+ - `test-saves/fireemblem-net/sources/archives/*`
+ - `test-saves/fireemblem-net/sources/download-metadata.json`
+ 
+ ## Notes
+ 
+ - The downloader writes archives and also extracts real `.sav` fixtures into the fixture root using deterministic names such as `fireemblem-net-fe8-fe0901.sav`.
+ - `.rar` extraction is mandatory: the script requires either `7z` or `tar` for `.rar` archives, records the extraction result in `sources/download-metadata.json`, and exits non-zero if any archive cannot be extracted.
+ - Each downloaded archive has extraction metadata recorded in `sources/download-metadata.json` under each `archiveAttempts[].extraction`, including `archiveEntries`, `fixtureFiles`, and the extractor used.
++
++## Current fixture count
++
++Current committed `.sav` fixtures: **3**
++
++- `fireemblem-net-fe6-fe0702.sav`
++- `fireemblem-net-fe7-fe0801.sav`
++- `fireemblem-net-fe8-fe0901.sav`

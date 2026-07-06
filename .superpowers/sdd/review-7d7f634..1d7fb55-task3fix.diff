@@ -1,0 +1,535 @@
+# Review package: 7d7f6344f936023364c69d89a52e96a9e19385d6..1d7fb55af60875783807a74413687cfbba99daf7
+
+## Commits
+1d7fb55 docs: add task 3 fix report
+6ecea53 feat: make unit selector searchable
+
+## Files changed
+ .superpowers/sdd/task-3-fix-report.md        |  39 +++++++
+ src/components/BlockStructuredTable.test.tsx |  31 +++++-
+ src/components/BlockStructuredTable.tsx      | 147 +++++++++++++++++++++------
+ src/i18n.ts                                  |   6 +-
+ 4 files changed, 187 insertions(+), 36 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/task-3-fix-report.md b/.superpowers/sdd/task-3-fix-report.md
+new file mode 100644
+index 0000000..862b950
+--- /dev/null
++++ b/.superpowers/sdd/task-3-fix-report.md
+@@ -0,0 +1,39 @@
++# Task 3 Fix Implementer Report
++
++Status: DONE
++
++## Summary
++- Updated `src/components/BlockStructuredTable.tsx` so the unit selector is label-driven instead of numeric-only.
++- Added searchable unit options derived from translated unit group titles.
++- Kept page jump + Go intact for paged sections.
++- Preserved the existing draft/error reconciliation flow.
++
++## What Changed
++### `src/components/BlockStructuredTable.tsx`
++- Added unit selector helpers:
++  - `buildUnitSelectorOptions(...)`
++  - `resolveUnitSelectorPage(...)`
++- Unit selector now:
++  - displays translated unit group titles as the option values
++  - accepts numeric shortcuts and translated labels
++  - resolves to the correct unit page via `findUnitPageByIndex(...)`
++- Page navigation still uses the existing numeric page jump + Go control.
++
++### `src/components/BlockStructuredTable.test.tsx`
++- Updated the component coverage to assert:
++  - the selector shows translated unit titles
++  - the placeholder describes label/number search
++  - helper resolution accepts translated labels and numeric shortcuts
++
++### `src/i18n.ts`
++- Updated the unit selector placeholder copy in EN/JA/ZH to reflect searchable label-based navigation.
++
++## Verification
++Run:
++`npm run test:run -- src/components/BlockStructuredTable.test.tsx src/lib/structuredTableLayout.test.ts src/lib/structuredNavigation.test.ts`
++
++Result:
++- PASS (3 files, 11 tests)
++
++## Commit
++- `6ecea53` — `feat: make unit selector searchable`
+diff --git a/src/components/BlockStructuredTable.test.tsx b/src/components/BlockStructuredTable.test.tsx
+index fe3e53c..f7896e2 100644
+--- a/src/components/BlockStructuredTable.test.tsx
++++ b/src/components/BlockStructuredTable.test.tsx
+@@ -1,15 +1,20 @@
+ import { renderToStaticMarkup } from 'react-dom/server'
+ import { beforeEach, describe, expect, it } from 'vitest'
+ import i18n from '../i18n'
+ import type { FieldRow } from '../lib/structuredEditor'
+-import { BlockStructuredTable } from './BlockStructuredTable'
++import { groupRowsByDomainAndGroup } from '../lib/structuredTableLayout'
++import {
++  BlockStructuredTable,
++  buildUnitSelectorOptions,
++  resolveUnitSelectorPage,
++} from './BlockStructuredTable'
+ 
+ function makeRow(overrides: Partial<FieldRow> & Pick<FieldRow, 'key'>): FieldRow {
+   return {
+     key: overrides.key,
+     domain: overrides.domain ?? 'playState',
+     groupKey: overrides.groupKey ?? 'playst',
+     memberPath: overrides.memberPath ?? overrides.key,
+     offset: overrides.offset ?? 0,
+     size: overrides.size ?? 1,
+     type: overrides.type ?? 'u8',
+@@ -41,28 +46,48 @@ describe('BlockStructuredTable', () => {
+           }),
+         ]}
+         onApplyEdit={() => undefined}
+       />,
+     )
+ 
+     expect(markup).toContain('Technical field: fe6Units[0].raw_34 (0x0034)')
+     expect(markup).not.toContain('field.tech.fe6Units_0_raw_34')
+   })
+ 
+-  it('renders page jump and unit selector controls for structured sections', () => {
++  it('renders page jump and searchable unit selector controls for structured sections', () => {
+     const markup = renderToStaticMarkup(
+       <BlockStructuredTable
+         blockKey="test-block"
+         rows={[
+           makeRow({ key: 'u0', domain: 'units', groupKey: 'units.0', unitIndex: 0 }),
+           makeRow({ key: 'u1', domain: 'units', groupKey: 'units.1', unitIndex: 1 }),
+         ]}
+         onApplyEdit={() => undefined}
+       />,
+     )
+ 
+     expect(markup).toContain('aria-label="Page"')
+     expect(markup).toContain('Go')
+     expect(markup).toContain('aria-label="Unit"')
+-    expect(markup).toContain('placeholder="Jump to unit"')
++    expect(markup).toContain('placeholder="Jump to unit name or number"')
++    expect(markup).toContain('value="Unit 1"')
++    expect(markup).toContain('value="Unit 2"')
++  })
++
++  it('builds unit selector options from translated unit titles and resolves labels', () => {
++    const sections = groupRowsByDomainAndGroup([
++      makeRow({ key: 'u0', domain: 'units', groupKey: 'units.0', unitIndex: 0 }),
++      makeRow({ key: 'u1', domain: 'units', groupKey: 'units.1', unitIndex: 1 }),
++    ])
++    const section = sections.find((candidate) => candidate.domain === 'units')
++
++    expect(section).toBeDefined()
++    if (!section) return
++
++    const options = buildUnitSelectorOptions(section, i18n.t.bind(i18n))
++
++    expect(options.map((option) => option.value)).toEqual(['Unit 1', 'Unit 2'])
++    expect(resolveUnitSelectorPage(section, 'Unit 2', options)).toBe(1)
++    expect(resolveUnitSelectorPage(section, 'unit 1', options)).toBe(0)
++    expect(resolveUnitSelectorPage(section, '2', options)).toBe(1)
+   })
+ })
+diff --git a/src/components/BlockStructuredTable.tsx b/src/components/BlockStructuredTable.tsx
+index 0cae1c0..fa28d5d 100644
+--- a/src/components/BlockStructuredTable.tsx
++++ b/src/components/BlockStructuredTable.tsx
+@@ -2,66 +2,154 @@ import { useEffect, useMemo, useRef, useState } from 'react'
+ import { useTranslation } from 'react-i18next'
+ import {
+   reconcileDraftErrors,
+   reconcileDraftValues,
+ } from '../lib/editorDraftState'
+ import type { FieldRow } from '../lib/structuredEditor'
+ import {
+   groupRowsByDomainAndGroup,
+   STRUCTURED_DOMAIN_PAGE_SIZE,
+   paginateStructuredSection,
++  type StructuredDomainSection,
+ } from '../lib/structuredTableLayout'
+ import { findUnitPageByIndex, parsePageJump } from '../lib/structuredNavigation'
+ 
+ type BlockStructuredTableProps = {
+   blockKey: string
+   rows: FieldRow[]
+   onApplyEdit: (rowKey: string, nextValue: string) => void
+ }
+ 
++type Translate = (key: string, options?: Record<string, unknown>) => string
++
++export type UnitSelectorOption = {
++  pageIndex: number
++  value: string
++  label: string
++  searchText: string
++}
++
+ function formatRowValue(value: number | string): string {
+   return String(value)
+ }
+ 
+ function formatOffset(offset: number): string {
+   return `0x${offset.toString(16).toUpperCase().padStart(4, '0')}`
+ }
+ 
+ function formatTechnicalOffset(offset: number): string {
+   return formatOffset(offset).slice(2)
+ }
+ 
+ function formatTypeLabel(type: FieldRow['type']): string {
+   return type === 'bytes' ? 'HEX' : type.toUpperCase()
+ }
+ 
+ function toTranslatedError(
+-  t: (key: string, options?: Record<string, unknown>) => string,
++  t: Translate,
+   error: unknown,
+ ): string {
+   if (error instanceof Error) {
+     return t(error.message, { defaultValue: error.message })
+   }
+   return t('editorUnknownError')
+ }
+ 
++function normalizeSelectorText(value: string): string {
++  return value.trim().toLowerCase().replace(/\s+/g, ' ')
++}
++
++function translateGroupTitle(t: Translate, group: StructuredDomainSection['groups'][number]): string {
++  return t(group.title.labelKey, {
++    ...group.title.options,
++    defaultValue: group.title.defaultLabel,
++  })
++}
++
++export function buildUnitSelectorOptions(
++  section: StructuredDomainSection,
++  t: Translate,
++): UnitSelectorOption[] {
++  if (section.domain !== 'units') return []
++
++  return section.groups.map((group, index) => {
++    const translatedTitle = translateGroupTitle(t, group)
++    const value = translatedTitle
++    const label = `#${index + 1}`
++    const searchText = normalizeSelectorText(
++      [value, label, String(index + 1), group.groupKey, group.title.defaultLabel]
++        .filter((part) => part.length > 0)
++        .join(' '),
++    )
++
++    return {
++      pageIndex: index,
++      value,
++      label,
++      searchText,
++    }
++  })
++}
++
++export function resolveUnitSelectorPage(
++  section: StructuredDomainSection,
++  input: string,
++  options: readonly UnitSelectorOption[],
++): number | null {
++  const trimmed = input.trim()
++  if (!trimmed) return null
++
++  const numericPage = parsePageJump(trimmed, section.groups.length)
++  if (numericPage !== null) {
++    return findUnitPageByIndex(section, numericPage)
++  }
++
++  const normalized = normalizeSelectorText(trimmed)
++  const exactMatch = options.find(
++    (option) =>
++      option.searchText === normalized || normalizeSelectorText(option.value) === normalized,
++  )
++  if (exactMatch) return exactMatch.pageIndex
++
++  const prefixMatches = options.filter((option) => option.searchText.startsWith(normalized))
++  return prefixMatches.length === 1 ? prefixMatches[0].pageIndex : null
++}
++
++function getUnitSelectorValue(
++  section: StructuredDomainSection,
++  pageIndex: number,
++  t: Translate,
++): string {
++  const group = section.groups[pageIndex]
++  return group ? translateGroupTitle(t, group) : String(pageIndex + 1)
++}
++
+ export function BlockStructuredTable({
+   blockKey,
+   rows,
+   onApplyEdit,
+ }: BlockStructuredTableProps) {
+   const { t } = useTranslation()
+   const groupedRows = useMemo(() => groupRowsByDomainAndGroup(rows), [rows])
+   const groups = useMemo(
+     () => groupedRows.flatMap((section) => section.groups),
+     [groupedRows],
+   )
++  const unitSelectorOptionsBySection = useMemo(
++    () =>
++      new Map(
++        groupedRows
++          .filter((section) => section.domain === 'units')
++          .map((section) => [section.id, buildUnitSelectorOptions(section, t)]),
++      ),
++    [groupedRows, t],
++  )
+   const canonicalValues = useMemo(
+     () =>
+       Object.fromEntries(
+         rows.map((row) => [row.key, formatRowValue(row.value)]),
+       ) as Record<string, string>,
+     [rows],
+   )
+   const previousCanonicalValues = useRef(canonicalValues)
+   const previousBlockKey = useRef(blockKey)
+   const [state, setState] = useState<{
+@@ -146,40 +234,43 @@ export function BlockStructuredTable({
+       }
+       const next = { ...current.errors }
+       delete next[rowKey]
+       return {
+         ...current,
+         errors: next,
+       }
+     })
+   }
+ 
+-  function setSectionPage(sectionId: string, nextPage: number) {
++  function setSectionPage(section: StructuredDomainSection, nextPage: number) {
+     const nextValue = String(nextPage + 1)
+     setDomainPages((current) => ({
+       ...current,
+-      [sectionId]: nextPage,
++      [section.id]: nextPage,
+     }))
+     setPageJumpInputs((current) => ({
+       ...current,
+-      [sectionId]: nextValue,
++      [section.id]: nextValue,
+     }))
+     setUnitJumpInputs((current) => ({
+       ...current,
+-      [sectionId]: nextValue,
++      [section.id]:
++        section.domain === 'units'
++          ? getUnitSelectorValue(section, nextPage, t)
++          : nextValue,
+     }))
+   }
+ 
+-  function applyPageJump(sectionId: string, totalPages: number) {
+-    const parsed = parsePageJump(pageJumpInputs[sectionId] ?? '', totalPages)
++  function applyPageJump(section: StructuredDomainSection, totalPages: number) {
++    const parsed = parsePageJump(pageJumpInputs[section.id] ?? '', totalPages)
+     if (parsed === null) return
+-    setSectionPage(sectionId, parsed)
++    setSectionPage(section, parsed)
+   }
+ 
+   function applyRow(rowKey: string) {
+     const nextValue = state.drafts[rowKey] ?? canonicalValues[rowKey] ?? ''
+     try {
+       onApplyEdit(rowKey, nextValue)
+       clearError(rowKey)
+     } catch (error) {
+       setState((current) => ({
+         ...current,
+@@ -283,96 +374,92 @@ export function BlockStructuredTable({
+                           value={pageJumpInputs[section.id] ?? String(page.currentPage + 1)}
+                           onChange={(event) =>
+                             setPageJumpInputs((current) => ({
+                               ...current,
+                               [section.id]: event.target.value,
+                             }))
+                           }
+                           onKeyDown={(event) => {
+                             if (event.key === 'Enter') {
+                               event.preventDefault()
+-                              applyPageJump(section.id, page.totalPages)
++                              applyPageJump(section, page.totalPages)
+                             }
+                           }}
+                         />
+                       </label>
+                       <button
+                         type="button"
+-                        onClick={() => applyPageJump(section.id, page.totalPages)}
++                        onClick={() => applyPageJump(section, page.totalPages)}
+                       >
+                         {t('structuredEditor.goToPage')}
+                       </button>
+                       <button
+                         type="button"
+                         disabled={page.currentPage === 0}
+-                        onClick={() =>
+-                          setSectionPage(section.id, Math.max(0, page.currentPage - 1))
+-                        }
++                        onClick={() => setSectionPage(section, Math.max(0, page.currentPage - 1))}
+                       >
+                         {t('previous')}
+                       </button>
+                       <span className="structured-group-page-status">
+                         {t('structuredEditor.pageStatus', {
+                           current: page.currentPage + 1,
+                           total: page.totalPages,
+                           defaultValue: `Page ${page.currentPage + 1} / ${page.totalPages}`,
+                         })}
+                       </span>
+                       <button
+                         type="button"
+                         disabled={page.currentPage >= page.totalPages - 1}
+                         onClick={() =>
+-                          setSectionPage(
+-                            section.id,
+-                            Math.min(page.totalPages - 1, page.currentPage + 1),
+-                          )
++                          setSectionPage(section, Math.min(page.totalPages - 1, page.currentPage + 1))
+                         }
+                       >
+                         {t('next')}
+                       </button>
+                     </div>
+                   )}
+                   {section.domain === 'units' && (
+                     <div className="structured-group-controls">
+                       <label className="structured-unit-jump">
+                         <input
+                           aria-label={t('structuredEditor.unitSelector')}
+                           list={`unit-options-${section.id}`}
+                           placeholder={t('structuredEditor.unitSelectorPlaceholder')}
+                           spellCheck={false}
+-                          value={unitJumpInputs[section.id] ?? String(page.currentPage + 1)}
++                          value={
++                            unitJumpInputs[section.id] ??
++                            getUnitSelectorValue(section, page.currentPage, t)
++                          }
+                           onChange={(event) => {
+                             const nextValue = event.target.value
+                             setUnitJumpInputs((current) => ({
+                               ...current,
+                               [section.id]: nextValue,
+                             }))
+ 
+-                            const parsed = parsePageJump(nextValue, section.groups.length)
+-                            if (parsed === null) return
+-
+-                            const unitPage = findUnitPageByIndex(section, parsed)
++                            const unitPage = resolveUnitSelectorPage(
++                              section,
++                              nextValue,
++                              unitSelectorOptionsBySection.get(section.id) ?? [],
++                            )
+                             if (unitPage === null) return
+ 
+-                            setSectionPage(section.id, unitPage)
++                            setSectionPage(section, unitPage)
+                           }}
+                         />
+                       </label>
+                       <datalist id={`unit-options-${section.id}`}>
+-                        {section.groups.map((group, index) => (
++                        {(unitSelectorOptionsBySection.get(section.id) ?? []).map((option) => (
+                           <option
+-                            key={group.id}
+-                            value={String(index + 1)}
+-                            label={t(group.title.labelKey, {
+-                              ...group.title.options,
+-                              defaultValue: group.title.defaultLabel,
+-                            })}
++                            key={section.groups[option.pageIndex]?.id ?? option.value}
++                            value={option.value}
++                            label={option.label}
+                           />
+                         ))}
+                       </datalist>
+                     </div>
+                   )}
+                 </div>
+ 
+                 {visibleGroups.map((group) => {
+                   const fullGroup =
+                     section.groups.find((candidate) => candidate.id === group.id) ?? group
+diff --git a/src/i18n.ts b/src/i18n.ts
+index c78dd18..dd538c0 100644
+--- a/src/i18n.ts
++++ b/src/i18n.ts
+@@ -55,21 +55,21 @@ const resources = {
+       'saveCodec.patchOutOfRange': 'That edit is outside the selected block.',
+       'structuredEditor.invalidRow': 'This field is not available for the selected block.',
+       'structuredEditor.invalidInteger': 'Enter a whole number.',
+       'structuredEditor.outOfRange': 'Value is outside the valid range for this field.',
+       'structuredEditor.invalidBytes': 'Enter hexadecimal bytes such as AB or 0xAB.',
+       'structuredEditor.textTooLong': 'Text is too long for this field.',
+       'structuredEditor.pageStatus': 'Page {{current}} / {{total}}',
+       'structuredEditor.pageInputLabel': 'Page',
+       'structuredEditor.goToPage': 'Go',
+       'structuredEditor.unitSelector': 'Unit',
+-      'structuredEditor.unitSelectorPlaceholder': 'Jump to unit',
++      'structuredEditor.unitSelectorPlaceholder': 'Jump to unit name or number',
+       'structuredEditor.expandGroup': 'Expand group',
+       'structuredEditor.collapseGroup': 'Collapse group',
+       'structuredEditor.fieldCount': '{{count}} fields',
+       'structuredEditor.domain.playState': 'Play state',
+       'structuredEditor.domain.units': 'Units',
+       'structuredEditor.domain.inventory': 'Inventory',
+       'structuredEditor.domain.progressFlags': 'Progress flags',
+       'structuredEditor.domain.technical': 'Technical',
+       structuredDomainUnits: 'Units',
+       structuredDomainInventory: 'Inventory / Convoy',
+@@ -210,21 +210,21 @@ const resources = {
+       'saveCodec.patchOutOfRange': '選択中ブロックの範囲外です。',
+       'structuredEditor.invalidRow': 'このブロックではこの項目を編集できません。',
+       'structuredEditor.invalidInteger': '整数を入力してください。',
+       'structuredEditor.outOfRange': '値がこの項目の範囲外です。',
+       'structuredEditor.invalidBytes': 'AB または 0xAB のような16進数を入力してください。',
+       'structuredEditor.textTooLong': '文字列が長すぎます。',
+       'structuredEditor.pageStatus': '{{current}} / {{total}} ページ',
+       'structuredEditor.pageInputLabel': 'ページ',
+       'structuredEditor.goToPage': '移動',
+       'structuredEditor.unitSelector': 'ユニット',
+-      'structuredEditor.unitSelectorPlaceholder': 'ユニットへ移動',
++      'structuredEditor.unitSelectorPlaceholder': 'ユニット名または番号で移動',
+       'structuredEditor.expandGroup': 'グループを展開',
+       'structuredEditor.collapseGroup': 'グループを折りたたむ',
+       'structuredEditor.fieldCount': '{{count}} 件',
+       'structuredEditor.domain.playState': 'プレイ状態',
+       'structuredEditor.domain.units': 'ユニット',
+       'structuredEditor.domain.inventory': '持ち物',
+       'structuredEditor.domain.progressFlags': '進行フラグ',
+       'structuredEditor.domain.technical': '技術項目',
+       structuredDomainUnits: 'ユニット',
+       structuredDomainInventory: 'アイテム / 輸送隊',
+@@ -365,21 +365,21 @@ const resources = {
+       'saveCodec.patchOutOfRange': '修改超出了当前区块范围。',
+       'structuredEditor.invalidRow': '当前区块不支持该字段。',
+       'structuredEditor.invalidInteger': '请输入整数。',
+       'structuredEditor.outOfRange': '该字段的值超出允许范围。',
+       'structuredEditor.invalidBytes': '请输入 AB 或 0xAB 形式的十六进制字节。',
+       'structuredEditor.textTooLong': '文本长度超出该字段限制。',
+       'structuredEditor.pageStatus': '第 {{current}} / {{total}} 页',
+       'structuredEditor.pageInputLabel': '页码',
+       'structuredEditor.goToPage': '跳转',
+       'structuredEditor.unitSelector': '单位',
+-      'structuredEditor.unitSelectorPlaceholder': '跳转到单位',
++      'structuredEditor.unitSelectorPlaceholder': '按单位名称或编号跳转',
+       'structuredEditor.expandGroup': '展开分组',
+       'structuredEditor.collapseGroup': '折叠分组',
+       'structuredEditor.fieldCount': '{{count}} 项',
+       'structuredEditor.domain.playState': '流程状态',
+       'structuredEditor.domain.units': '单位',
+       'structuredEditor.domain.inventory': '道具',
+       'structuredEditor.domain.progressFlags': '进度标记',
+       'structuredEditor.domain.technical': '技术字段',
+       structuredDomainUnits: '单位',
+       structuredDomainInventory: '道具 / 运输队',

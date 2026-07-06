@@ -1,0 +1,728 @@
+# Review package: ac613867aae9a680ba954d1213f6f9cdef9532ca..e7f6426aa45875a83ccaccf87e512f864c95d267
+
+## Commits
+e7f6426 feat: add unit-centric structured section pagination helpers
+
+## Files changed
+ src/lib/structuredTableLayout.test.ts | 321 +++++++++++++++-------------
+ src/lib/structuredTableLayout.ts      | 386 +++++++++++++++++++---------------
+ 2 files changed, 391 insertions(+), 316 deletions(-)
+
+## Diff
+diff --git a/src/lib/structuredTableLayout.test.ts b/src/lib/structuredTableLayout.test.ts
+index 7eed99b..7467d92 100644
+--- a/src/lib/structuredTableLayout.test.ts
++++ b/src/lib/structuredTableLayout.test.ts
+@@ -1,146 +1,175 @@
+-import { describe, expect, it } from 'vitest'
+-import type { FieldRow } from './structuredEditor'
+-import {
+-  STRUCTURED_DOMAIN_PAGE_SIZE,
+-  groupRowsByDomainAndGroup,
+-  paginateStructuredRows,
+-} from './structuredTableLayout'
+-
+-function makeRow(overrides: Partial<FieldRow> & Pick<FieldRow, 'key'>): FieldRow {
+-  return {
+-    key: overrides.key,
+-    domain: overrides.domain ?? 'playState',
+-    groupKey: overrides.groupKey ?? 'playst',
+-    memberPath: overrides.memberPath ?? overrides.key,
+-    offset: overrides.offset ?? 0,
+-    size: overrides.size ?? 1,
+-    type: overrides.type ?? 'u8',
+-    labelKey: overrides.labelKey ?? 'field.playst.gold',
+-    value: overrides.value ?? 0,
+-    bitIndex: overrides.bitIndex,
+-    unitIndex: overrides.unitIndex,
+-  }
+-}
+-
+-describe('structuredTableLayout', () => {
+-  it('groups rows by domain and group while preserving first-seen order', () => {
+-    const rows: FieldRow[] = [
+-      makeRow({ key: 'playst.gold', domain: 'playState', groupKey: 'playst' }),
+-      makeRow({
+-        key: 'unit.0.level',
+-        domain: 'units',
+-        groupKey: 'units.0',
+-        memberPath: 'units[0].level',
+-        unitIndex: 0,
+-      }),
+-      makeRow({
+-        key: 'unit.0.exp',
+-        domain: 'units',
+-        groupKey: 'units.0',
+-        memberPath: 'units[0].exp',
+-        unitIndex: 0,
+-      }),
+-      makeRow({
+-        key: 'inventory.convoy.0.itemId',
+-        domain: 'inventory',
+-        groupKey: 'inventory.convoy',
+-        memberPath: 'inventory.convoy[0].itemId',
+-      }),
+-      makeRow({
+-        key: 'progress.chapterState',
+-        domain: 'progressFlags',
+-        groupKey: 'progressFlags.chapter',
+-        memberPath: 'progressFlags.chapterState',
+-      }),
+-      makeRow({
+-        key: 'unit.1.level',
+-        domain: 'units',
+-        groupKey: 'units.1',
+-        memberPath: 'units[1].level',
+-        unitIndex: 1,
+-      }),
+-    ]
+-
+-    const grouped = groupRowsByDomainAndGroup(rows)
+-
+-    expect(grouped.map((section) => section.domain)).toEqual([
+-      'playState',
+-      'units',
+-      'inventory',
+-      'progressFlags',
+-    ])
+-    expect(grouped.map((section) => section.title.labelKey)).toEqual([
+-      'structuredEditor.domain.playState',
+-      'structuredDomainUnits',
+-      'structuredDomainInventory',
+-      'structuredDomainProgressFlags',
+-    ])
+-    expect(grouped[1]?.groups.map((group) => group.groupKey)).toEqual([
+-      'units.0',
+-      'units.1',
+-    ])
+-    expect(grouped[1]?.groups[0]?.rows.map((row) => row.key)).toEqual([
+-      'unit.0.level',
+-      'unit.0.exp',
+-    ])
+-  })
+-
+-  it('caps visible rows per large domain page and keeps group boundaries inside the slice', () => {
+-    const rows = [
+-      ...Array.from({ length: 25 }, (_, index) =>
+-        makeRow({
+-          key: `unit.0.field.${index}`,
+-          domain: 'units',
+-          groupKey: 'units.0',
+-          memberPath: `units[0].field${index}`,
+-          unitIndex: 0,
+-          offset: index,
+-        }),
+-      ),
+-      ...Array.from({ length: STRUCTURED_DOMAIN_PAGE_SIZE - 25 + 5 }, (_, index) =>
+-        makeRow({
+-          key: `unit.1.field.${index}`,
+-          domain: 'units',
+-          groupKey: 'units.1',
+-          memberPath: `units[1].field${index}`,
+-          unitIndex: 1,
+-          offset: index + 25,
+-        }),
+-      ),
+-    ]
+-    const grouped = groupRowsByDomainAndGroup(rows)
+-    const section = grouped[0]
+-
+-    expect(section).toBeDefined()
+-
+-    const firstPage = paginateStructuredRows(section!.rows, 0)
+-    const lastPage = paginateStructuredRows(section!.rows, 999)
+-    const firstPageGroups = groupRowsByDomainAndGroup(firstPage.rows)[0]?.groups
+-
+-    expect(firstPage.rows).toHaveLength(STRUCTURED_DOMAIN_PAGE_SIZE)
+-    expect(firstPage.totalPages).toBe(2)
+-    expect(lastPage.currentPage).toBe(1)
+-    expect(lastPage.rows).toHaveLength(5)
+-    expect(firstPageGroups?.map((group) => group.groupKey)).toEqual([
+-      'units.0',
+-      'units.1',
+-    ])
+-    expect(firstPageGroups?.[1]?.rows).toHaveLength(7)
+-  })
+-
+-  it('marks technical groups collapsed by default', () => {
+-    const grouped = groupRowsByDomainAndGroup([
+-      makeRow({
+-        key: 'bytes.0000',
+-        domain: 'technical',
+-        groupKey: 'unknown',
+-        memberPath: 'bytes.0000',
+-        type: 'bytes',
+-        labelKey: 'field.unknown.bytes',
+-        value: 'ABCD',
+-      }),
+-    ])
+-
+-    expect(grouped[0]?.groups[0]?.defaultCollapsed).toBe(true)
+-  })
+-})
++import { describe, expect, it } from 'vitest'
++import type { FieldRow } from './structuredEditor'
++import {
++  STRUCTURED_DOMAIN_PAGE_SIZE,
++  groupRowsByDomainAndGroup,
++  paginateStructuredRows,
++  paginateStructuredSection,
++  getUnitGroupIndexes,
++} from './structuredTableLayout'
++
++function makeRow(overrides: Partial<FieldRow> & Pick<FieldRow, 'key'>): FieldRow {
++  return {
++    key: overrides.key,
++    domain: overrides.domain ?? 'playState',
++    groupKey: overrides.groupKey ?? 'playst',
++    memberPath: overrides.memberPath ?? overrides.key,
++    offset: overrides.offset ?? 0,
++    size: overrides.size ?? 1,
++    type: overrides.type ?? 'u8',
++    labelKey: overrides.labelKey ?? 'field.playst.gold',
++    value: overrides.value ?? 0,
++    bitIndex: overrides.bitIndex,
++    unitIndex: overrides.unitIndex,
++  }
++}
++
++describe('structuredTableLayout', () => {
++  it('groups rows by domain and group while preserving first-seen order', () => {
++    const rows: FieldRow[] = [
++      makeRow({ key: 'playst.gold', domain: 'playState', groupKey: 'playst' }),
++      makeRow({
++        key: 'unit.0.level',
++        domain: 'units',
++        groupKey: 'units.0',
++        memberPath: 'units[0].level',
++        unitIndex: 0,
++      }),
++      makeRow({
++        key: 'unit.0.exp',
++        domain: 'units',
++        groupKey: 'units.0',
++        memberPath: 'units[0].exp',
++        unitIndex: 0,
++      }),
++      makeRow({
++        key: 'inventory.convoy.0.itemId',
++        domain: 'inventory',
++        groupKey: 'inventory.convoy',
++        memberPath: 'inventory.convoy[0].itemId',
++      }),
++      makeRow({
++        key: 'progress.chapterState',
++        domain: 'progressFlags',
++        groupKey: 'progressFlags.chapter',
++        memberPath: 'progressFlags.chapterState',
++      }),
++      makeRow({
++        key: 'unit.1.level',
++        domain: 'units',
++        groupKey: 'units.1',
++        memberPath: 'units[1].level',
++        unitIndex: 1,
++      }),
++    ]
++
++    const grouped = groupRowsByDomainAndGroup(rows)
++
++    expect(grouped.map((section) => section.domain)).toEqual([
++      'playState',
++      'units',
++      'inventory',
++      'progressFlags',
++    ])
++    expect(grouped.map((section) => section.title.labelKey)).toEqual([
++      'structuredEditor.domain.playState',
++      'structuredDomainUnits',
++      'structuredDomainInventory',
++      'structuredDomainProgressFlags',
++    ])
++    expect(grouped[1]?.groups.map((group) => group.groupKey)).toEqual([
++      'units.0',
++      'units.1',
++    ])
++    expect(grouped[1]?.groups[0]?.rows.map((row) => row.key)).toEqual([
++      'unit.0.level',
++      'unit.0.exp',
++    ])
++  })
++
++  it('caps visible rows per large domain page and keeps group boundaries inside the slice', () => {
++    const rows = [
++      ...Array.from({ length: 25 }, (_, index) =>
++        makeRow({
++          key: `unit.0.field.${index}`,
++          domain: 'units',
++          groupKey: 'units.0',
++          memberPath: `units[0].field${index}`,
++          unitIndex: 0,
++          offset: index,
++        }),
++      ),
++      ...Array.from({ length: STRUCTURED_DOMAIN_PAGE_SIZE - 25 + 5 }, (_, index) =>
++        makeRow({
++          key: `unit.1.field.${index}`,
++          domain: 'units',
++          groupKey: 'units.1',
++          memberPath: `units[1].field${index}`,
++          unitIndex: 1,
++          offset: index + 25,
++        }),
++      ),
++    ]
++    const grouped = groupRowsByDomainAndGroup(rows)
++    const section = grouped[0]
++
++    expect(section).toBeDefined()
++
++    const firstPage = paginateStructuredRows(section!.rows, 0)
++    const lastPage = paginateStructuredRows(section!.rows, 999)
++    const firstPageGroups = groupRowsByDomainAndGroup(firstPage.rows)[0]?.groups
++
++    expect(firstPage.rows).toHaveLength(STRUCTURED_DOMAIN_PAGE_SIZE)
++    expect(firstPage.totalPages).toBe(2)
++    expect(lastPage.currentPage).toBe(1)
++    expect(lastPage.rows).toHaveLength(5)
++    expect(firstPageGroups?.map((group) => group.groupKey)).toEqual([
++      'units.0',
++      'units.1',
++    ])
++    expect(firstPageGroups?.[1]?.rows).toHaveLength(7)
++  })
++
++  it('marks technical groups collapsed by default', () => {
++    const grouped = groupRowsByDomainAndGroup([
++      makeRow({
++        key: 'bytes.0000',
++        domain: 'technical',
++        groupKey: 'unknown',
++        memberPath: 'bytes.0000',
++        type: 'bytes',
++        labelKey: 'field.unknown.bytes',
++        value: 'ABCD',
++      }),
++    ])
++
++    expect(grouped[0]?.groups[0]?.defaultCollapsed).toBe(true)
++  })
++
++  it('paginates units domain as one full unit-group per page', () => {
++    const rows: FieldRow[] = [
++      makeRow({ key: 'u0.a', domain: 'units', groupKey: 'units.0', unitIndex: 0 }),
++      makeRow({ key: 'u0.b', domain: 'units', groupKey: 'units.0', unitIndex: 0 }),
++      makeRow({ key: 'u1.a', domain: 'units', groupKey: 'units.1', unitIndex: 1 }),
++    ]
++    const section = groupRowsByDomainAndGroup(rows)[0]!
++    const page0 = paginateStructuredSection(section, 0)
++    const page1 = paginateStructuredSection(section, 1)
++
++    expect(page0.totalPages).toBe(2)
++    expect(page0.visibleGroupIds).toEqual(['units:units.0'])
++    expect(page0.rows.map((r) => r.key)).toEqual(['u0.a', 'u0.b'])
++    expect(page1.visibleGroupIds).toEqual(['units:units.1'])
++    expect(page1.rows.map((r) => r.key)).toEqual(['u1.a'])
++  })
++
++  it('returns unit group indexes for units section', () => {
++    const rows: FieldRow[] = [
++      makeRow({ key: 'u0.a', domain: 'units', groupKey: 'units.0', unitIndex: 0 }),
++      makeRow({ key: 'u0.b', domain: 'units', groupKey: 'units.0', unitIndex: 0 }),
++      makeRow({ key: 'u1.a', domain: 'units', groupKey: 'units.1', unitIndex: 1 }),
++    ]
++    const section = groupRowsByDomainAndGroup(rows)[0]!
++    expect(getUnitGroupIndexes(section)).toEqual([0, 1])
++  })
++})
+diff --git a/src/lib/structuredTableLayout.ts b/src/lib/structuredTableLayout.ts
+index 46c82ec..4b5095f 100644
+--- a/src/lib/structuredTableLayout.ts
++++ b/src/lib/structuredTableLayout.ts
+@@ -1,170 +1,216 @@
+-import type { FieldRow } from './structuredEditor'
+-
+-type LabelDescriptor = {
+-  labelKey: string
+-  defaultLabel: string
+-  options?: Record<string, number | string>
+-}
+-
+-export type StructuredRowGroup = {
+-  id: string
+-  domain: FieldRow['domain']
+-  groupKey: string
+-  rows: FieldRow[]
+-  title: LabelDescriptor
+-  defaultCollapsed: boolean
+-}
+-
+-export type StructuredDomainSection = {
+-  id: FieldRow['domain']
+-  domain: FieldRow['domain']
+-  title: LabelDescriptor
+-  rows: FieldRow[]
+-  groups: StructuredRowGroup[]
+-}
+-
+-export const STRUCTURED_DOMAIN_PAGE_SIZE = 32
+-
+-const DOMAIN_LABELS: Record<FieldRow['domain'], LabelDescriptor> = {
+-  playState: {
+-    labelKey: 'structuredEditor.domain.playState',
+-    defaultLabel: 'Play state',
+-  },
+-  units: {
+-    labelKey: 'structuredDomainUnits',
+-    defaultLabel: 'Units',
+-  },
+-  inventory: {
+-    labelKey: 'structuredDomainInventory',
+-    defaultLabel: 'Inventory / Convoy',
+-  },
+-  progressFlags: {
+-    labelKey: 'structuredDomainProgressFlags',
+-    defaultLabel: 'Progress / Flags',
+-  },
+-  technical: {
+-    labelKey: 'structuredEditor.domain.technical',
+-    defaultLabel: 'Technical',
+-  },
+-}
+-
+-const GROUP_LABELS: Record<string, LabelDescriptor> = {
+-  playst: {
+-    labelKey: 'structuredEditor.group.playState',
+-    defaultLabel: 'Play state',
+-  },
+-  'inventory.convoy': {
+-    labelKey: 'structuredEditor.group.inventoryConvoy',
+-    defaultLabel: 'Convoy',
+-  },
+-  'progressFlags.chapter': {
+-    labelKey: 'structuredEditor.group.progressChapter',
+-    defaultLabel: 'Chapter flags',
+-  },
+-  'progressFlags.support': {
+-    labelKey: 'structuredEditor.group.progressSupport',
+-    defaultLabel: 'Support flags',
+-  },
+-  'progressFlags.world': {
+-    labelKey: 'structuredEditor.group.progressWorld',
+-    defaultLabel: 'World flags',
+-  },
+-  unknown: {
+-    labelKey: 'structuredEditor.group.unknown',
+-    defaultLabel: 'Raw bytes',
+-  },
+-}
+-
+-function describeGroup(rows: readonly FieldRow[], groupKey: string): LabelDescriptor {
+-  const directLabel = GROUP_LABELS[groupKey]
+-  if (directLabel) {
+-    return directLabel
+-  }
+-
+-  const unitIndex =
+-    rows.find((row) => row.unitIndex !== undefined)?.unitIndex ??
+-    (/^units\.(\d+)$/.exec(groupKey)?.[1]
+-      ? Number(/^units\.(\d+)$/.exec(groupKey)?.[1])
+-      : undefined)
+-
+-  if (unitIndex !== undefined) {
+-    return {
+-      labelKey: 'structuredEditor.group.unit',
+-      defaultLabel: `Unit ${unitIndex + 1}`,
+-      options: {
+-        index: unitIndex + 1,
+-      },
+-    }
+-  }
+-
+-  return {
+-    labelKey: `structuredEditor.group.${groupKey.replace(/[^\w]+/g, '_')}`,
+-    defaultLabel: groupKey,
+-  }
+-}
+-
+-export function groupRowsByDomainAndGroup(
+-  rows: readonly FieldRow[],
+-): StructuredDomainSection[] {
+-  const sections: StructuredDomainSection[] = []
+-  const sectionIndex = new Map<FieldRow['domain'], StructuredDomainSection>()
+-  const groupIndex = new Map<string, StructuredRowGroup>()
+-
+-  for (const row of rows) {
+-    let section = sectionIndex.get(row.domain)
+-    if (!section) {
+-      section = {
+-        id: row.domain,
+-        domain: row.domain,
+-        title: DOMAIN_LABELS[row.domain],
+-        rows: [],
+-        groups: [],
+-      }
+-      sectionIndex.set(row.domain, section)
+-      sections.push(section)
+-    }
+-    section.rows.push(row)
+-
+-    const id = `${row.domain}:${row.groupKey}`
+-    let group = groupIndex.get(id)
+-    if (!group) {
+-      group = {
+-        id,
+-        domain: row.domain,
+-        groupKey: row.groupKey,
+-        rows: [],
+-        title: describeGroup([row], row.groupKey),
+-        defaultCollapsed: row.domain === 'technical',
+-      }
+-      groupIndex.set(id, group)
+-      section.groups.push(group)
+-    }
+-
+-    group.rows.push(row)
+-    if (group.title.defaultLabel === group.groupKey) {
+-      group.title = describeGroup(group.rows, group.groupKey)
+-    }
+-  }
+-
+-  return sections
+-}
+-
+-export function paginateStructuredRows(
+-  rows: readonly FieldRow[],
+-  pageIndex: number,
+-  pageSize = STRUCTURED_DOMAIN_PAGE_SIZE,
+-) {
+-  const safePageSize = Math.max(1, Math.trunc(pageSize) || STRUCTURED_DOMAIN_PAGE_SIZE)
+-  const totalPages = Math.max(1, Math.ceil(rows.length / safePageSize))
+-  const currentPage = Math.min(Math.max(0, Math.trunc(pageIndex) || 0), totalPages - 1)
+-  const startIndex = currentPage * safePageSize
+-  const endIndex = Math.min(startIndex + safePageSize, rows.length)
+-
+-  return {
+-    currentPage,
+-    totalPages,
+-    startIndex,
+-    endIndex,
+-    rows: rows.slice(startIndex, endIndex),
+-  }
+-}
++import type { FieldRow } from './structuredEditor'
++
++type LabelDescriptor = {
++  labelKey: string
++  defaultLabel: string
++  options?: Record<string, number | string>
++}
++
++export type StructuredRowGroup = {
++  id: string
++  domain: FieldRow['domain']
++  groupKey: string
++  rows: FieldRow[]
++  title: LabelDescriptor
++  defaultCollapsed: boolean
++}
++
++export type StructuredDomainSection = {
++  id: FieldRow['domain']
++  domain: FieldRow['domain']
++  title: LabelDescriptor
++  rows: FieldRow[]
++  groups: StructuredRowGroup[]
++}
++
++export const STRUCTURED_DOMAIN_PAGE_SIZE = 32
++
++const DOMAIN_LABELS: Record<FieldRow['domain'], LabelDescriptor> = {
++  playState: {
++    labelKey: 'structuredEditor.domain.playState',
++    defaultLabel: 'Play state',
++  },
++  units: {
++    labelKey: 'structuredDomainUnits',
++    defaultLabel: 'Units',
++  },
++  inventory: {
++    labelKey: 'structuredDomainInventory',
++    defaultLabel: 'Inventory / Convoy',
++  },
++  progressFlags: {
++    labelKey: 'structuredDomainProgressFlags',
++    defaultLabel: 'Progress / Flags',
++  },
++  technical: {
++    labelKey: 'structuredEditor.domain.technical',
++    defaultLabel: 'Technical',
++  },
++}
++
++const GROUP_LABELS: Record<string, LabelDescriptor> = {
++  playst: {
++    labelKey: 'structuredEditor.group.playState',
++    defaultLabel: 'Play state',
++  },
++  'inventory.convoy': {
++    labelKey: 'structuredEditor.group.inventoryConvoy',
++    defaultLabel: 'Convoy',
++  },
++  'progressFlags.chapter': {
++    labelKey: 'structuredEditor.group.progressChapter',
++    defaultLabel: 'Chapter flags',
++  },
++  'progressFlags.support': {
++    labelKey: 'structuredEditor.group.progressSupport',
++    defaultLabel: 'Support flags',
++  },
++  'progressFlags.world': {
++    labelKey: 'structuredEditor.group.progressWorld',
++    defaultLabel: 'World flags',
++  },
++  unknown: {
++    labelKey: 'structuredEditor.group.unknown',
++    defaultLabel: 'Raw bytes',
++  },
++}
++
++function describeGroup(rows: readonly FieldRow[], groupKey: string): LabelDescriptor {
++  const directLabel = GROUP_LABELS[groupKey]
++  if (directLabel) {
++    return directLabel
++  }
++
++  const unitIndex =
++    rows.find((row) => row.unitIndex !== undefined)?.unitIndex ??
++    (/^units\.(\d+)$/.exec(groupKey)?.[1]
++      ? Number(/^units\.(\d+)$/.exec(groupKey)?.[1])
++      : undefined)
++
++  if (unitIndex !== undefined) {
++    return {
++      labelKey: 'structuredEditor.group.unit',
++      defaultLabel: `Unit ${unitIndex + 1}`,
++      options: {
++        index: unitIndex + 1,
++      },
++    }
++  }
++
++  return {
++    labelKey: `structuredEditor.group.${groupKey.replace(/[^\w]+/g, '_')}`,
++    defaultLabel: groupKey,
++  }
++}
++
++export function groupRowsByDomainAndGroup(
++  rows: readonly FieldRow[],
++): StructuredDomainSection[] {
++  const sections: StructuredDomainSection[] = []
++  const sectionIndex = new Map<FieldRow['domain'], StructuredDomainSection>()
++  const groupIndex = new Map<string, StructuredRowGroup>()
++
++  for (const row of rows) {
++    let section = sectionIndex.get(row.domain)
++    if (!section) {
++      section = {
++        id: row.domain,
++        domain: row.domain,
++        title: DOMAIN_LABELS[row.domain],
++        rows: [],
++        groups: [],
++      }
++      sectionIndex.set(row.domain, section)
++      sections.push(section)
++    }
++    section.rows.push(row)
++
++    const id = `${row.domain}:${row.groupKey}`
++    let group = groupIndex.get(id)
++    if (!group) {
++      group = {
++        id,
++        domain: row.domain,
++        groupKey: row.groupKey,
++        rows: [],
++        title: describeGroup([row], row.groupKey),
++        defaultCollapsed: row.domain === 'technical',
++      }
++      groupIndex.set(id, group)
++      section.groups.push(group)
++    }
++
++    group.rows.push(row)
++    if (group.title.defaultLabel === group.groupKey) {
++      group.title = describeGroup(group.rows, group.groupKey)
++    }
++  }
++
++  return sections
++}
++
++export function paginateStructuredRows(
++  rows: readonly FieldRow[],
++  pageIndex: number,
++  pageSize = STRUCTURED_DOMAIN_PAGE_SIZE,
++) {
++  const safePageSize = Math.max(1, Math.trunc(pageSize) || STRUCTURED_DOMAIN_PAGE_SIZE)
++  const totalPages = Math.max(1, Math.ceil(rows.length / safePageSize))
++  const currentPage = Math.min(Math.max(0, Math.trunc(pageIndex) || 0), totalPages - 1)
++  const startIndex = currentPage * safePageSize
++  const endIndex = Math.min(startIndex + safePageSize, rows.length)
++
++  return {
++    currentPage,
++    totalPages,
++    startIndex,
++    endIndex,
++    rows: rows.slice(startIndex, endIndex),
++  }
++}
++
++export type StructuredDomainPage = {
++  currentPage: number
++  totalPages: number
++  rows: FieldRow[]
++  visibleGroupIds: string[]
++}
++
++function isUnitsSection(section: StructuredDomainSection): boolean {
++  return section.domain === 'units'
++}
++
++export function getUnitGroupIndexes(section: StructuredDomainSection): number[] {
++  if (!isUnitsSection(section)) return []
++  return section.groups
++    .map((group) => /^units\.(\d+)$/.exec(group.groupKey)?.[1])
++    .filter((value): value is string => value !== undefined)
++    .map((value) => Number(value))
++}
++
++export function paginateStructuredSection(
++  section: StructuredDomainSection,
++  pageIndex: number,
++): StructuredDomainPage {
++  if (!isUnitsSection(section)) {
++    const page = paginateStructuredRows(section.rows, pageIndex)
++    const visibleGroups = groupRowsByDomainAndGroup(page.rows).find((s) => s.id === section.id)?.groups ?? []
++    return {
++      currentPage: page.currentPage,
++      totalPages: page.totalPages,
++      rows: page.rows,
++      visibleGroupIds: visibleGroups.map((group) => group.id),
++    }
++  }
++
++  const totalPages = Math.max(1, section.groups.length)
++  const currentPage = Math.min(Math.max(0, Math.trunc(pageIndex) || 0), totalPages - 1)
++  const selectedGroup = section.groups[currentPage]
++  return {
++    currentPage,
++    totalPages,
++    rows: selectedGroup?.rows ?? [],
++    visibleGroupIds: selectedGroup ? [selectedGroup.id] : [],
++  }
++}
++
