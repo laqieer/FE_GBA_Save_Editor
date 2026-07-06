@@ -32,6 +32,7 @@ type PackedBitFieldSpec = Readonly<{
 type UnitLayout = Readonly<{
   playStSize: number
   playStateFields: readonly BlockFieldSchema[]
+  unitSize: number
   unitCount: number
   hasGmUnitBeforeSupply: boolean
   convoyItemCount: number
@@ -44,7 +45,8 @@ type UnitLayout = Readonly<{
   supportOffset: number
 }>
 
-const PACKED_UNIT_SIZE = 0x24
+const FE7_FE8_PACKED_UNIT_SIZE = 0x24
+const FE6_PACKED_UNIT_SIZE = 0x25
 
 function makeField(field: BlockFieldSchemaInput): BlockFieldSchema {
   return {
@@ -199,6 +201,7 @@ const FE8_PACKED_FIELDS: readonly PackedBitFieldSpec[] = [
 const FE6_LAYOUT: UnitLayout = {
   playStSize: 0x20,
   playStateFields: FE6_PLAYST_FIELD_SCHEMA,
+  unitSize: FE6_PACKED_UNIT_SIZE,
   unitCount: 52,
   hasGmUnitBeforeSupply: false,
   convoyItemCount: 100,
@@ -212,6 +215,7 @@ const FE6_LAYOUT: UnitLayout = {
 const FE7_LAYOUT: UnitLayout = {
   playStSize: 0x48,
   playStateFields: FE7_FE8_PLAYST_FIELD_SCHEMA,
+  unitSize: FE7_FE8_PACKED_UNIT_SIZE,
   unitCount: 52,
   hasGmUnitBeforeSupply: false,
   convoyItemCount: 100,
@@ -225,6 +229,7 @@ const FE7_LAYOUT: UnitLayout = {
 const FE8_LAYOUT: UnitLayout = {
   playStSize: 0x4c,
   playStateFields: FE7_FE8_PLAYST_FIELD_SCHEMA,
+  unitSize: FE7_FE8_PACKED_UNIT_SIZE,
   unitCount: 51,
   hasGmUnitBeforeSupply: true,
   convoyItemCount: 0x58,
@@ -236,12 +241,12 @@ const FE8_LAYOUT: UnitLayout = {
 }
 
 function getSupplyIdBase(layout: UnitLayout): number {
-  const gmUnitBytes = layout.hasGmUnitBeforeSupply ? PACKED_UNIT_SIZE : 0
-  return layout.playStSize + layout.unitCount * PACKED_UNIT_SIZE + gmUnitBytes
+  const gmUnitBytes = layout.hasGmUnitBeforeSupply ? layout.unitSize : 0
+  return layout.playStSize + layout.unitCount * layout.unitSize + gmUnitBytes
 }
 
 function buildPackedUnitSchema(unitIndex: number, layout: UnitLayout): readonly BlockFieldSchema[] {
-  const unitBase = layout.playStSize + unitIndex * PACKED_UNIT_SIZE
+  const unitBase = layout.playStSize + unitIndex * layout.unitSize
   const groupKey = `units.${unitIndex}`
   const memberPrefix = `units[${unitIndex}]`
   const fields: BlockFieldSchema[] = []

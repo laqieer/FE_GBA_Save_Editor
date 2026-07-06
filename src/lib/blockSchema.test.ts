@@ -59,4 +59,29 @@ describe('blockSchema', () => {
 
     expect(stateFlags?.bitLength).toBe(13)
   })
+
+  it('keeps every per-unit field within that unit range for FE6/FE7/FE8 game-save schemas', () => {
+    for (const gameCode of ['FE6', 'FE7', 'FE8'] as const) {
+      const fields = getBlockSchema(gameCode, 0)
+      const unit0Character = fields.find((field) => field.memberPath === 'units[0].characterId')
+      const unit1Character = fields.find((field) => field.memberPath === 'units[1].characterId')
+
+      expect(unit0Character).toBeDefined()
+      expect(unit1Character).toBeDefined()
+      if (!unit0Character || !unit1Character) continue
+
+      const unitSize = unit1Character.offset - unit0Character.offset
+      expect(unitSize).toBeGreaterThan(0)
+
+      for (const field of fields) {
+        const match = /^units\[(\d+)\]\./.exec(field.memberPath)
+        if (!match) continue
+
+        const unitIndex = Number(match[1])
+        const unitStart = unit0Character.offset + unitIndex * unitSize
+        const unitEnd = unitStart + unitSize
+        expect(field.offset + field.byteLength, `${gameCode}:${field.memberPath}`).toBeLessThanOrEqual(unitEnd)
+      }
+    }
+  })
 })
