@@ -95,3 +95,40 @@ Both final commands passed successfully.
 - Command outcomes:
   - `npm run test:run -- src/lib/structuredEditor.test.ts src/lib/editorDraftState.test.ts src/lib/hexEditor.test.ts src/lib/blockCodec.test.ts src/lib/saveCodec.test.ts src/lib/editorState.test.ts` ✅ Passed (6 files, 26 tests)
   - `npm run build` ✅ Passed
+
+---
+
+# Task 4 Verification (2026-07-06)
+
+## Intent
+Run Task 4 regression verification for structured unit navigation per `.superpowers/sdd/task-4-brief.md`.
+
+## Actions performed
+- Ran targeted tests:
+  - `npm run test:run -- src/components/BlockStructuredTable.test.tsx src/lib/structuredTableLayout.test.ts`
+  - `npm run test:run -- src/components/BlockStructuredTable.test.tsx src/lib/structuredTableLayout.test.ts src/lib/structuredNavigation.test.ts src/lib/structuredEditor.test.ts`
+- Built production bundle: `npm run build`
+
+## Results
+- Targeted tests (first run): 2 files, 8 tests — ALL PASSED.
+- Full targeted checks: 4 files, 21 tests — ALL PASSED.
+- Build: TypeScript + Vite production bundle — SUCCESS.
+
+Console excerpts:
+- Tests: "Test Files  4 passed (4)  Tests  21 passed (21)"
+- Build: "✓ built in 220ms"
+
+## Files inspected/covered
+- src/components/BlockStructuredTable.test.tsx
+- src/lib/structuredTableLayout.test.ts
+- src/lib/structuredNavigation.test.ts
+- src/lib/structuredEditor.test.ts
+
+## Notes
+- All regression assertions in the brief already pass against the current codebase — no code changes were necessary.
+- No test failures were introduced; no minimal alignment edits were required.
+
+## Commit
+No source changes required. Appended this verification report to `.superpowers/sdd/task-4-report.md` and committed the update.
+
+
