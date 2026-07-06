@@ -52,6 +52,10 @@ const BLOCK_INFO_SIZE = 0x10
 const GENERAL_CHECKSUM_OFFSET = 0x60
 const GENERAL_CHECKSUM_SIZE = 0x50
 const PLAYST_OFFSET = 0
+const SPS_HEADER = 'SharkPortSave'
+const SPS_HEADER_SIZE = 0x1c
+const SPS_HEADER_TAG_SIZE = 4
+const SPS_SENTINEL = 0x000f0000
 
 function readU16(bytes: Uint8Array, offset: number): number {
   return bytes[offset] | (bytes[offset + 1] << 8)
@@ -100,6 +104,14 @@ function writeFixedString(bytes: Uint8Array, offset: number, size: number, value
   }
 }
 
+function computeSharkPortChecksum(bytes: Uint8Array): number {
+  let checksum = 0
+  for (let i = 0; i < bytes.length; i += 1) {
+    checksum = (checksum + (bytes[i] << (checksum % 24))) >>> 0
+  }
+  return checksum >>> 0
+}
+
 export function computeChecksum16(data: Uint8Array): number {
   let addAcc = 0
   let xorAcc = 0
@@ -127,6 +139,74 @@ function deriveGameCode(metadataName: string): GameCode {
   if (metadataName.includes('FE7')) return 'FE7'
   if (metadataName.includes('FE8') || metadataName.includes('FE9')) return 'FE8'
   return 'UNKNOWN'
+}
+
+export function decodeSpsBytes(bytes: Uint8Array): Uint8Array {
+  if (bytes.length < SPS_HEADER_TAG_SIZE) {
+    throw new Error('Malformed .sps save file')
+  }
+
+  let cursor = 0
+  const headerLength = readU32(bytes, cursor)
+  cursor += SPS_HEADER_TAG_SIZE
+  if (headerLength !== SPS_HEADER.length || cursor + headerLength + SPS_HEADER_TAG_SIZE > bytes.length) {
+    throw new Error('Malformed .sps save file')
+  }
+
+  const headerName = new TextDecoder().decode(bytes.slice(cursor, cursor + headerLength))
+  cursor += headerLength
+  if (headerName !== SPS_HEADER) {
+    throw new Error('Malformed .sps save file')
+  }
+
+  const sentinel = readU32(bytes, cursor)
+  cursor += SPS_HEADER_TAG_SIZE
+  if (sentinel !== SPS_SENTINEL) {
+    throw new Error('Malformed .sps save file')
+  }
+
+  for (let i = 0; i < 3; i += 1) {
+    if (cursor + SPS_HEADER_TAG_SIZE > bytes.length) {
+      throw new Error('Malformed .sps save file')
+    }
+    const size = readU32(bytes, cursor)
+    cursor += SPS_HEADER_TAG_SIZE
+    if (size < 0 || cursor + size > bytes.length) {
+      throw new Error('Malformed .sps save file')
+    }
+    cursor += size
+  }
+
+  if (cursor + SPS_HEADER_TAG_SIZE > bytes.length) {
+    throw new Error('Malformed .sps save file')
+  }
+
+  const totalSize = readU32(bytes, cursor)
+  cursor += SPS_HEADER_TAG_SIZE
+  if (totalSize < SPS_HEADER_SIZE || cursor + totalSize + SPS_HEADER_TAG_SIZE !== bytes.length) {
+    throw new Error('Malformed .sps save file')
+  }
+
+  const container = bytes.slice(cursor, cursor + totalSize)
+  if (container.length !== totalSize) {
+    throw new Error('Malformed .sps save file')
+  }
+
+  const checksumOffset = cursor + totalSize
+  const checksum = readU32(bytes, checksumOffset)
+  const checksumComputed = computeSharkPortChecksum(container)
+  if (checksum !== checksumComputed) {
+    throw new Error('Malformed .sps save file')
+  }
+
+  return container.slice(SPS_HEADER_SIZE)
+}
+
+export function normalizeSaveBytes(fileName: string, bytes: Uint8Array): Uint8Array {
+  if (/\.sps$/i.test(fileName)) {
+    return decodeSpsBytes(bytes)
+  }
+  return bytes
 }
 
 function parsePlayState(bytes: Uint8Array, base: number, size: number): PlayState | undefined {
@@ -211,7 +291,7 @@ function parseFromBytes(fileName: string, bytes: Uint8Array): ParsedSaveFile {
 
 export async function parseSaveFile(file: File): Promise<ParsedSaveFile> {
   const bytes = new Uint8Array(await file.arrayBuffer())
-  return parseFromBytes(file.name, bytes)
+  return parseFromBytes(file.name, normalizeSaveBytes(file.name, bytes))
 }
 
 export function readBlockBytes(parsed: ParsedSaveFile, blockIndex: number): Uint8Array {

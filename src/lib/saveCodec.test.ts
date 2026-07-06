@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   SAVE_CODEC_ERROR_KEYS,
+  decodeSpsBytes,
+  normalizeSaveBytes,
   parseSaveFile,
   readBlockBytes,
   serializeSaveFile,
@@ -43,7 +45,15 @@ function checksum32(data: Uint8Array): number {
   return ((addAcc & 0xffff) | ((xorAcc & 0xffff) << 16)) >>> 0
 }
 
-function buildSampleSave(): File {
+function sharkPortChecksum(data: Uint8Array): number {
+  let checksum = 0
+  for (let i = 0; i < data.length; i += 1) {
+    checksum = (checksum + (data[i] << (checksum % 24))) >>> 0
+  }
+  return checksum >>> 0
+}
+
+function buildValidSampleSramBytes(): Uint8Array {
   const buf = new Uint8Array(0x1000)
   const magic = new TextEncoder().encode('AGB-FE8\u0000')
   buf.set(magic, 0x00)
@@ -67,16 +77,94 @@ function buildSampleSave(): File {
   writeU32(buf, 0x70, checksum32(slotBody))
   writeU16(buf, 0x60, checksum16(buf.slice(0, 0x50)))
 
-  return new File([buf], 'sample.sav', { type: 'application/octet-stream' })
+  return buf
+}
+
+function buildSpsFixtureFromSram(sram: Uint8Array): Uint8Array {
+  const header = new Uint8Array(0x1c)
+  header.set(new TextEncoder().encode('FE8 SAMPLE SAVE'), 0)
+  header[0x10] = 0
+  header[0x11] = 0
+  header[0x12] = 0x24
+  header[0x13] = 0x01
+  header[0x14] = 1
+  header[0x15] = 0
+  header[0x16] = 0
+  header[0x17] = 0
+  header[0x18] = 0
+  header[0x19] = 0
+  header[0x1a] = 0
+  header[0x1b] = 0
+
+  const totalSize = header.length + sram.length
+  const container = new Uint8Array(4 + 'SharkPortSave'.length + 4 + 4 + 16 + 4 + 0 + 4 + 0 + 4 + totalSize + 4)
+  let offset = 0
+  writeU32(container, offset, 'SharkPortSave'.length)
+  offset += 4
+  container.set(new TextEncoder().encode('SharkPortSave'), offset)
+  offset += 'SharkPortSave'.length
+  writeU32(container, offset, 0x000f0000)
+  offset += 4
+  writeU32(container, offset, 16)
+  offset += 4
+  container.set(header.slice(0, 16), offset)
+  offset += 16
+  writeU32(container, offset, 0)
+  offset += 4
+  writeU32(container, offset, 0)
+  offset += 4
+  writeU32(container, offset, totalSize)
+  offset += 4
+  container.set(header, offset)
+  offset += header.length
+  container.set(sram, offset)
+  offset += sram.length
+  writeU32(container, offset, sharkPortChecksum(container.slice(offset - totalSize, offset)))
+  return container
+}
+
+function buildSampleSave(): File {
+  const sram = buildValidSampleSramBytes()
+  return new File([Uint8Array.from(sram).buffer], 'sample.sav', { type: 'application/octet-stream' })
+}
+
+function buildSpsSave(): File {
+  const sram = buildValidSampleSramBytes()
+  return new File(
+    [Uint8Array.from(buildSpsFixtureFromSram(sram)).buffer],
+    'sample.sps',
+    { type: 'application/octet-stream' },
+  )
 }
 
 describe('saveCodec', () => {
+  it('normalizes .sps containers to raw save bytes', () => {
+    const sram = buildValidSampleSramBytes()
+    const sps = buildSpsFixtureFromSram(sram)
+
+    expect(normalizeSaveBytes('sample.sps', sps)).toEqual(sram)
+    expect(decodeSpsBytes(sps)).toEqual(sram)
+    expect(normalizeSaveBytes('sample.sav', sram)).toEqual(sram)
+  })
+
   it('parses FE save metadata and verifies slot checksum', async () => {
     const parsed = await parseSaveFile(buildSampleSave())
     expect(parsed.gameCode).toBe('FE8')
     expect(parsed.blocks[0].checksumValid).toBe(true)
     expect(parsed.blocks[0].playState?.gold).toBe(12345)
     expect(parsed.blocks[0].playState?.chapterIndex).toBe(11)
+  })
+
+  it('parses valid SRAM wrapped in SPS container', async () => {
+    const parsed = await parseSaveFile(buildSpsSave())
+
+    expect(parsed.blocks.length).toBe(7)
+    expect(parsed.gameCode).toBe('FE8')
+    expect(parsed.blocks[0].playState?.gold).toBe(12345)
+  })
+
+  it('rejects malformed SPS payload', async () => {
+    await expect(parseSaveFile(new File([new Uint8Array([0x53, 0x50, 0x53, 0x00, 0x01])], 'broken.sps'))).rejects.toThrow()
   })
 
   it('updates play-state fields and re-computes checksums on serialize', async () => {
