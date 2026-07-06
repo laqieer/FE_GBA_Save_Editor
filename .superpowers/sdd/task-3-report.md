@@ -72,3 +72,32 @@
 
 ## Commit / Push
 - Final branch state includes the required feature commit and a follow-up validation fix commit before push.
+## Task 3: Structured navigation controls
+
+### Scope
+- Updated `src/components/BlockStructuredTable.tsx` to add direct page jump controls and a searchable unit selector for structured unit sections.
+- Updated `src/components/BlockStructuredTable.test.tsx` to cover the new controls.
+- Updated `src/i18n.ts` with the required labels in English, Japanese, and Chinese.
+
+### Requirements Covered
+- Page jump input + Go button for structured sections with multiple pages.
+- Units domain now exposes a searchable unit dropdown for fast switching.
+- Units are still page-per-unit through the existing structured paging helpers.
+- Draft/error reconciliation and checksum-safe edit behavior were left intact.
+- Hex editor behavior was not changed.
+
+### TDD / Verification
+1. Added tests for the new structured controls in `BlockStructuredTable.test.tsx`.
+2. Ran `npm run test:run -- src/components/BlockStructuredTable.test.tsx`.
+3. Ran `npm run test:run -- src/components/BlockStructuredTable.test.tsx src/lib/structuredTableLayout.test.ts src/lib/structuredNavigation.test.ts`.
+4. Both targeted runs passed.
+
+### Implementation Notes
+- Switched structured paging in `BlockStructuredTable` to `paginateStructuredSection(...)` so units render one page per unit.
+- Wired `parsePageJump(...)` into the page-jump input and `findUnitPageByIndex(...)` into the unit selector.
+- Kept navigation state isolated from draft/edit state.
+- Added translated labels for the new controls.
+
+### Commit
+- `b5c7f8e` — `feat: add page jump and unit selector to structured editor`
+
