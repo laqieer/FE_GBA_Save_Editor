@@ -1,5 +1,8 @@
+/** @vitest-environment jsdom */
 import { renderToStaticMarkup } from 'react-dom/server'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { createRoot, type Root } from 'react-dom/client'
+import { act } from 'react'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import i18n from '../i18n'
 import type { FieldRow } from '../lib/structuredEditor'
 import { groupRowsByDomainAndGroup, paginateStructuredSection } from '../lib/structuredTableLayout'
@@ -27,9 +30,103 @@ function makeRow(overrides: Partial<FieldRow> & Pick<FieldRow, 'key'>): FieldRow
   }
 }
 
+function makeUnitRows(): FieldRow[] {
+  return [
+    makeRow({
+      key: 'u0',
+      domain: 'units',
+      groupKey: 'units.0',
+      memberPath: 'units[0].level',
+      unitIndex: 0,
+    }),
+    makeRow({
+      key: 'u1',
+      domain: 'units',
+      groupKey: 'units.1',
+      memberPath: 'units[1].level',
+      unitIndex: 1,
+    }),
+  ]
+}
+
+type MountedTable = {
+  container: HTMLDivElement
+  root: Root
+  rerender: (blockKey: string, rows: FieldRow[]) => Promise<void>
+  unmount: () => Promise<void>
+}
+
+async function mountTable(blockKey: string, rows: FieldRow[]): Promise<MountedTable> {
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+
+  const render = (nextBlockKey: string, nextRows: FieldRow[]) => {
+    root.render(
+      <BlockStructuredTable
+        blockKey={nextBlockKey}
+        rows={nextRows}
+        onApplyEdit={() => undefined}
+      />,
+    )
+  }
+
+  await act(async () => {
+    render(blockKey, rows)
+  })
+
+  return {
+    container,
+    root,
+    async rerender(nextBlockKey, nextRows) {
+      await act(async () => {
+        render(nextBlockKey, nextRows)
+      })
+    },
+    async unmount() {
+      await act(async () => {
+        root.unmount()
+      })
+      container.remove()
+    },
+  }
+}
+
+function getUnitInput(container: HTMLElement): HTMLInputElement {
+  const input = container.querySelector('.structured-unit-jump input')
+  if (!(input instanceof HTMLInputElement)) {
+    throw new Error('Unit selector input not found')
+  }
+  return input
+}
+
+function getPageStatus(container: HTMLElement): string {
+  const status = container.querySelector('.structured-group-page-status')
+  return status?.textContent ?? ''
+}
+
+async function setInputValue(input: HTMLInputElement, value: string) {
+  await act(async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
+    descriptor?.set?.call(input, value)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
 describe('BlockStructuredTable', () => {
-  beforeEach(() => {
-    void i18n.changeLanguage('en')
+  let mounted: MountedTable | null = null
+
+  beforeEach(async () => {
+    ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
+      true
+    await i18n.changeLanguage('en')
+  })
+
+  afterEach(async () => {
+    if (mounted) {
+      await mounted.unmount()
+    }
+    mounted = null
   })
 
   it('renders technical rows with the translated technical label template', () => {
@@ -93,6 +190,41 @@ describe('BlockStructuredTable', () => {
     expect(resolveUnitSelectorPage(section, '2', options)).toBe(1)
     expect(resolveUnitSelectorPage(section, '999', options)).toBeNull()
     expect(resolveUnitSelectorFallbackPage(section, '999', options)).toBe(0)
+  })
+
+  it('keeps the selected unit page stable across rerenders and resets on block key change', async () => {
+    mounted = await mountTable('block-a', makeUnitRows())
+
+    const unitInput = getUnitInput(mounted.container)
+    await setInputValue(unitInput, 'Unit 2')
+    expect(getPageStatus(mounted.container)).toContain('2 / 2')
+
+    await mounted.rerender('block-a', makeUnitRows())
+    expect(getPageStatus(mounted.container)).toContain('2 / 2')
+    expect(getUnitInput(mounted.container).value).toBe('Unit 2')
+
+    await mounted.rerender('block-b', makeUnitRows())
+    expect(getPageStatus(mounted.container)).toContain('1 / 2')
+    expect(getUnitInput(mounted.container).value).toBe('Unit 1')
+  })
+
+  it('does not jump to Unit 1 when the selector text is partial or the locale changes', async () => {
+    mounted = await mountTable('block-a', makeUnitRows())
+
+    const unitInput = getUnitInput(mounted.container)
+    await setInputValue(unitInput, 'Unit 2')
+    expect(getPageStatus(mounted.container)).toContain('2 / 2')
+
+    await setInputValue(getUnitInput(mounted.container), 'Unit')
+    expect(getPageStatus(mounted.container)).toContain('2 / 2')
+    expect(getUnitInput(mounted.container).value).toBe('Unit')
+
+    await act(async () => {
+      await i18n.changeLanguage('ja')
+    })
+
+    expect(getPageStatus(mounted.container)).toContain('2 / 2')
+    expect(getUnitInput(mounted.container).value).toBe('ユニット 2')
   })
 
   it('goes to the requested page and rejects invalid page input', () => {

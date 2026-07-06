@@ -172,8 +172,13 @@ export function BlockStructuredTable({
   const [domainPages, setDomainPages] = useState<Record<string, number>>({})
   const [pageJumpInputs, setPageJumpInputs] = useState<Record<string, string>>({})
   const [unitJumpInputs, setUnitJumpInputs] = useState<Record<string, string>>({})
+  const domainPagesRef = useRef(domainPages)
   const previousLayoutBlockKey = useRef(blockKey)
   const previousNavigationBlockKey = useRef(blockKey)
+
+  useEffect(() => {
+    domainPagesRef.current = domainPages
+  }, [domainPages])
 
   useEffect(() => {
     setState((current) => {
@@ -201,6 +206,8 @@ export function BlockStructuredTable({
 
   useEffect(() => {
     const preserveGroupState = previousLayoutBlockKey.current === blockKey
+    const currentDomainPages = domainPagesRef.current
+    const nextDomainPages: Record<string, number> = {}
 
     setCollapsedGroups((current) => {
       const next: Record<string, boolean> = {}
@@ -211,59 +218,31 @@ export function BlockStructuredTable({
       }
       return next
     })
-    setDomainPages((current) => {
-      const next: Record<string, number> = {}
+    for (const section of groupedRows) {
+      const currentPage = preserveGroupState ? currentDomainPages[section.id] ?? 0 : 0
+      nextDomainPages[section.id] = paginateStructuredSection(section, currentPage).currentPage
+    }
+    setDomainPages(nextDomainPages)
+    setPageJumpInputs((current) => {
+      const next = { ...current }
       for (const section of groupedRows) {
-        const currentPage = preserveGroupState ? current[section.id] ?? 0 : 0
-        const unitOptions = unitSelectorOptionsBySection.get(section.id) ?? []
-        const nextPage =
-          section.domain === 'units'
-            ? resolveUnitSelectorFallbackPage(
-                section,
-                unitJumpInputs[section.id],
-                unitOptions,
-              )
-            : currentPage
-        const page = paginateStructuredSection(section, nextPage)
-        next[section.id] = page.currentPage
+        next[section.id] = String(nextDomainPages[section.id] + 1)
       }
       return next
     })
-    setPageJumpInputs((current) => {
-      const next: Record<string, string> = {}
-      for (const section of groupedRows) {
-        if (section.domain !== 'units') {
-          continue
-        }
-        const unitOptions = unitSelectorOptionsBySection.get(section.id) ?? []
-        const nextPage = resolveUnitSelectorFallbackPage(
-          section,
-          unitJumpInputs[section.id],
-          unitOptions,
-        )
-        next[section.id] = String(nextPage + 1)
-      }
-      return Object.keys(next).length > 0 ? { ...current, ...next } : current
-    })
     setUnitJumpInputs((current) => {
-      const next: Record<string, string> = {}
+      const next = { ...current }
       for (const section of groupedRows) {
         if (section.domain !== 'units') {
           continue
         }
-        const unitOptions = unitSelectorOptionsBySection.get(section.id) ?? []
-        const nextPage = resolveUnitSelectorFallbackPage(
-          section,
-          unitJumpInputs[section.id],
-          unitOptions,
-        )
-        next[section.id] = getUnitSelectorValue(section, nextPage, t)
+        next[section.id] = getUnitSelectorValue(section, nextDomainPages[section.id], t)
       }
-      return Object.keys(next).length > 0 ? { ...current, ...next } : current
+      return next
     })
 
     previousLayoutBlockKey.current = blockKey
-  }, [blockKey, groupedRows, groups, t, unitSelectorOptionsBySection])
+  }, [blockKey, groupedRows, groups, t])
 
   useEffect(() => {
     const preserveNavigationState = previousNavigationBlockKey.current === blockKey
