@@ -28,5 +28,5 @@ The downloader writes:
 
 ## Notes
 
-- This task only downloads the archives and records provenance metadata.
-- Archive extraction into `.sav` fixtures is handled by the next task.
+- The downloader writes archives and also extracts `.sav` fixtures into the fixture root so tests can consume them.
+- Each downloaded archive has extraction metadata recorded in `sources/download-metadata.json` under each `archiveAttempts[].extraction`.

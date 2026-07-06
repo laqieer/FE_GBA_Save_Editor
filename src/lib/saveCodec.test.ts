@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
@@ -164,6 +164,11 @@ describe('saveCodec', () => {
       await readFile(resolve(FIREEMBLEM_NET_FIXTURE_DIR, 'sources', 'download-metadata.json'), 'utf8'),
     )
     expect(metadata.archiveAttempts.some((x: { titleCode: string }) => /^FE0[789]/.test(x.titleCode))).toBe(true)
+  })
+
+  it('includes extracted fireemblem.net .sav fixtures', async () => {
+    const files = await readdir(resolve(FIREEMBLEM_NET_FIXTURE_DIR))
+    expect(files.some((name) => name.toLowerCase().endsWith('.sav'))).toBe(true)
   })
 
   it('normalizes .sps containers to raw save bytes', () => {

@@ -191,10 +191,64 @@ try {
       $attempt.error = $downloadAttempt.error
     }
 
+    # Attempt extraction of .sav files from the downloaded archive so fixtures are available for tests.
+    try {
+      $extraction = [ordered]@{
+        success = $false
+        files = @()
+        error = $null
+      }
+
+      if ($attempt.success) {
+        $tempExtract = Join-Path $archivesDir ($archiveName + '.extract')
+        if (Test-Path $tempExtract) { Remove-Item -LiteralPath $tempExtract -Recurse -Force }
+        New-Item -ItemType Directory -Force -Path $tempExtract | Out-Null
+
+        try {
+          # Prefer Expand-Archive for zips; fall back to 7z for rar/other formats if available.
+          try {
+            Expand-Archive -Path $destinationPath -DestinationPath $tempExtract -Force -ErrorAction Stop
+          } catch {
+            $sevenZip = Get-Command 7z -ErrorAction SilentlyContinue
+            if ($sevenZip) {
+              & 7z x -y ("-o{0}" -f $tempExtract) $destinationPath | Out-Null
+            } else {
+              throw $_
+            }
+          }
+
+          $savFiles = Get-ChildItem -Path $tempExtract -Recurse -File -Filter *.sav -ErrorAction SilentlyContinue
+          foreach ($sav in $savFiles) {
+            $dest = Join-Path $fixtureRoot $sav.Name
+            Copy-Item -LiteralPath $sav.FullName -Destination $dest -Force
+            $extraction.files += (Convert-ToRelativePath -BasePath $repoRoot -Path $dest)
+          }
+
+          if ($extraction.files.Count -gt 0) {
+            $extraction.success = $true
+          }
+        } catch {
+          $extraction.error = $_.Exception.Message
+        } finally {
+          if (Test-Path $tempExtract) { Remove-Item -LiteralPath $tempExtract -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+      }
+    } catch {
+      # swallow to avoid breaking download flow; record extraction error below
+    }
+
     $attempt.Remove('destination')
     if ($attempt.success) {
       $attempt['relativePath'] = Convert-ToRelativePath -BasePath $repoRoot -Path $destinationPath
     }
+
+    # Attach extraction result metadata to the archive attempt
+    if ($null -eq $extraction) {
+      $attempt['extraction'] = [ordered]@{ success = $false; files = @(); error = 'not attempted' }
+    } else {
+      $attempt['extraction'] = $extraction
+    }
+
     $metadata.archiveAttempts += $attempt
   }
 
