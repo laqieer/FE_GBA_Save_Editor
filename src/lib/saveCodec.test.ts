@@ -56,19 +56,22 @@ function sharkPortChecksum(data: Uint8Array): number {
   return checksum >>> 0
 }
 
-function buildValidSampleSramBytes(): Uint8Array {
+function buildValidSampleSramBytes(gameCode: 'FE6' | 'FE8' = 'FE8'): Uint8Array {
   const buf = new Uint8Array(0x1000)
-  const magic = new TextEncoder().encode('AGB-FE8\u0000')
+  const magic = new TextEncoder().encode(gameCode === 'FE6' ? 'AGB-FE6\u0000' : 'AGB-FE8\u0000')
   buf.set(magic, 0x00)
   writeU32(buf, 0x08, 0x40624)
   writeU16(buf, 0x0c, 0x200a)
+  const blockInfoStart = gameCode === 'FE6' ? 0x20 : 0x64
+  const generalChecksumOffset = gameCode === 'FE6' ? 0x1c : 0x60
+  const generalChecksumSize = gameCode === 'FE6' ? 0x1c : 0x50
 
   // Save slot 0 block info
-  writeU32(buf, 0x64, 0x40624)
-  writeU16(buf, 0x68, 0x200a)
-  buf[0x6a] = 0 // kind game save
-  writeU16(buf, 0x6c, 0x0200)
-  writeU16(buf, 0x6e, 0x0080)
+  writeU32(buf, blockInfoStart, 0x40624)
+  writeU16(buf, blockInfoStart + 4, 0x200a)
+  buf[blockInfoStart + 6] = 0 // kind game save
+  writeU16(buf, blockInfoStart + 8, 0x0200)
+  writeU16(buf, blockInfoStart + 0x0a, 0x0080)
 
   // Fill sample play state at block start
   writeU32(buf, 0x0208, 12345) // gold
@@ -77,8 +80,8 @@ function buildValidSampleSramBytes(): Uint8Array {
   buf[0x0218] = 9 // playthrough id
 
   const slotBody = buf.slice(0x200, 0x280)
-  writeU32(buf, 0x70, checksum32(slotBody))
-  writeU16(buf, 0x60, checksum16(buf.slice(0, 0x50)))
+  writeU32(buf, blockInfoStart + 0x0c, checksum32(slotBody))
+  writeU16(buf, generalChecksumOffset, checksum16(buf.slice(0, generalChecksumSize)))
 
   return buf
 }
@@ -170,7 +173,7 @@ const FIREEMBLEM_NET_REAL_FIXTURE_CASES = [
     minimumPresentBlocks: 3,
     minimumValidBlocks: 0,
     minimumPlayStateBlocks: 1,
-    expectedGeneralChecksumValid: false,
+    expectedGeneralChecksumValid: true,
   },
   {
     archiveFileName: 'FE0801.zip',
@@ -286,6 +289,20 @@ describe('saveCodec', () => {
     expect(parsed.blocks[0].playState?.chapterIndex).toBe(11)
   })
 
+  it('parses FE6 save metadata with FE6 header layout offsets', async () => {
+    const parsed = await parseSaveFile(
+      new File([Uint8Array.from(buildValidSampleSramBytes('FE6')).buffer], 'sample-fe6.sav', {
+        type: 'application/octet-stream',
+      }),
+    )
+
+    expect(parsed.gameCode).toBe('FE6')
+    expect(parsed.generalChecksumValid).toBe(true)
+    expect(parsed.blocks[0].kind).toBe(0)
+    expect(parsed.blocks[0].offset).toBe(0x0200)
+    expect(parsed.blocks[0].checksumValid).toBe(true)
+  })
+
   it('parses valid SRAM wrapped in SPS container', async () => {
     const parsed = await parseSaveFile(buildSpsSave())
 
@@ -324,6 +341,7 @@ describe('saveCodec', () => {
     expect(parsed.gameCode).toBe(expectedGameCode)
     expect(parsed.blocks.length).toBe(7)
     expect(parsed.blocks.some((block) => block.offset > 0 && block.size > 0)).toBe(true)
+    expect(parsed.blocks.some((block) => [0, 1, 2, 3, 0xff].includes(block.kind))).toBe(true)
   })
 
   it.each(FIREEMBLEM_NET_REAL_FIXTURE_CASES)('loads extracted fireemblem.net fixture $fileName', async ({

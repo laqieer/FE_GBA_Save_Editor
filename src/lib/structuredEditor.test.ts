@@ -60,9 +60,12 @@ function buildSampleSave(gameCode: SampleGameCode = 'FE8'): File {
   buf.set(magic, 0x00)
   writeU32(buf, 0x08, 0x40624)
   writeU16(buf, 0x0c, 0x200a)
+  const blockInfoStart = gameCode === 'FE6' ? 0x20 : 0x64
+  const generalChecksumOffset = gameCode === 'FE6' ? 0x1c : 0x60
+  const generalChecksumSize = gameCode === 'FE6' ? 0x1c : 0x50
 
   for (let blockIndex = 0; blockIndex < 7; blockIndex += 1) {
-    const infoOffset = 0x64 + blockIndex * 0x10
+    const infoOffset = blockInfoStart + blockIndex * 0x10
     const blockOffset = 0x0200 + blockIndex * 0x0100
     const blockSize = 0x0080
 
@@ -96,14 +99,14 @@ function buildSampleSave(gameCode: SampleGameCode = 'FE8'): File {
   writeText(buf, 0x0320, 0x0b, 'Lyon')
 
   for (let blockIndex = 0; blockIndex < 7; blockIndex += 1) {
-    const infoOffset = 0x64 + blockIndex * 0x10
+    const infoOffset = blockInfoStart + blockIndex * 0x10
     const blockOffset = 0x0200 + blockIndex * 0x0100
     const blockSize = 0x0080
     const blockBody = buf.slice(blockOffset, blockOffset + blockSize)
     writeU32(buf, infoOffset + 0x0c, checksum32(blockBody))
   }
 
-  writeU16(buf, 0x60, checksum16(buf.slice(0, 0x50)))
+  writeU16(buf, generalChecksumOffset, checksum16(buf.slice(0, generalChecksumSize)))
   return new File([buf], 'structured.sav', { type: 'application/octet-stream' })
 }
 

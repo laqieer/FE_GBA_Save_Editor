@@ -46,11 +46,8 @@ export const SAVE_CODEC_ERROR_KEYS = {
   patchOutOfRange: 'saveCodec.patchOutOfRange',
 } as const
 
-const BLOCK_INFO_START = 0x64
 const BLOCK_INFO_COUNT = 7
 const BLOCK_INFO_SIZE = 0x10
-const GENERAL_CHECKSUM_OFFSET = 0x60
-const GENERAL_CHECKSUM_SIZE = 0x50
 const PLAYST_OFFSET = 0
 const SPS_HEADER = 'SharkPortSave'
 const SPS_HEADER_SIZE = 0x1c
@@ -141,6 +138,34 @@ function deriveGameCode(metadataName: string): GameCode {
   if (metadataName.includes('FE7')) return 'FE7'
   if (metadataName.includes('FE8') || metadataName.includes('FE9')) return 'FE8'
   return 'UNKNOWN'
+}
+
+type SaveHeaderLayout = {
+  blockInfoStart: number
+  generalChecksumOffset: number
+  generalChecksumSize: number
+}
+
+const FE6_HEADER_LAYOUT: SaveHeaderLayout = {
+  // FE6 GlobalSaveInfo is 0x20 bytes.
+  blockInfoStart: 0x20,
+  // FE6 checksum field is at 0x1C and computed over bytes [0x00, 0x1C).
+  generalChecksumOffset: 0x1c,
+  generalChecksumSize: 0x1c,
+}
+
+const FE7_FE8_HEADER_LAYOUT: SaveHeaderLayout = {
+  // FE7/FE8 GlobalSaveInfo is 0x64 bytes.
+  blockInfoStart: 0x64,
+  generalChecksumOffset: 0x60,
+  generalChecksumSize: 0x50,
+}
+
+function getHeaderLayout(gameCode: GameCode): SaveHeaderLayout {
+  if (gameCode === 'FE6') {
+    return FE6_HEADER_LAYOUT
+  }
+  return FE7_FE8_HEADER_LAYOUT
 }
 
 export function decodeSpsBytes(bytes: Uint8Array): Uint8Array {
@@ -252,12 +277,14 @@ function isPresentBlock(block: Pick<SaveBlockView, 'kind' | 'magic32' | 'offset'
 
 function parseFromBytes(fileName: string, bytes: Uint8Array): ParsedSaveFile {
   const metadataName = readFixedString(bytes, 0, 8)
-  const metadataChecksum = readU16(bytes, GENERAL_CHECKSUM_OFFSET)
-  const metadataComputed = computeChecksum16(bytes.slice(0, GENERAL_CHECKSUM_SIZE))
+  const gameCode = deriveGameCode(metadataName)
+  const layout = getHeaderLayout(gameCode)
+  const metadataChecksum = readU16(bytes, layout.generalChecksumOffset)
+  const metadataComputed = computeChecksum16(bytes.slice(0, layout.generalChecksumSize))
   const blocks: SaveBlockView[] = []
 
   for (let i = 0; i < BLOCK_INFO_COUNT; i += 1) {
-    const o = BLOCK_INFO_START + i * BLOCK_INFO_SIZE
+    const o = layout.blockInfoStart + i * BLOCK_INFO_SIZE
     const magic32 = readU32(bytes, o)
     const magic16 = readU16(bytes, o + 4)
     const kind = bytes[o + 6]
@@ -295,7 +322,7 @@ function parseFromBytes(fileName: string, bytes: Uint8Array): ParsedSaveFile {
   return {
     fileName,
     metadataName,
-    gameCode: deriveGameCode(metadataName),
+    gameCode,
     generalChecksumValid: metadataChecksum === metadataComputed,
     blocks,
     bytes,
@@ -335,18 +362,19 @@ export function updateBlockBytes(
   }
 
   const bytes = parsed.bytes.slice()
+  const layout = getHeaderLayout(parsed.gameCode)
   bytes.set(patch, block.offset + offsetInBlock)
 
   const blockBody = bytes.slice(block.offset, block.offset + block.size)
   writeU32(
     bytes,
-    BLOCK_INFO_START + blockIndex * BLOCK_INFO_SIZE + 0x0c,
+    layout.blockInfoStart + blockIndex * BLOCK_INFO_SIZE + 0x0c,
     computeChecksum32(blockBody),
   )
   writeU16(
     bytes,
-    GENERAL_CHECKSUM_OFFSET,
-    computeChecksum16(bytes.slice(0, GENERAL_CHECKSUM_SIZE)),
+    layout.generalChecksumOffset,
+    computeChecksum16(bytes.slice(0, layout.generalChecksumSize)),
   )
 
   return parseFromBytes(parsed.fileName, bytes)
@@ -363,6 +391,7 @@ export function updatePlayState(
   }
 
   const bytes = parsed.bytes.slice()
+  const layout = getHeaderLayout(parsed.gameCode)
   const p = block.offset + PLAYST_OFFSET
 
   if (patch.gold !== undefined) {
@@ -384,13 +413,13 @@ export function updatePlayState(
   const blockBody = bytes.slice(block.offset, block.offset + block.size)
   writeU32(
     bytes,
-    BLOCK_INFO_START + blockIndex * BLOCK_INFO_SIZE + 0x0c,
+    layout.blockInfoStart + blockIndex * BLOCK_INFO_SIZE + 0x0c,
     computeChecksum32(blockBody),
   )
   writeU16(
     bytes,
-    GENERAL_CHECKSUM_OFFSET,
-    computeChecksum16(bytes.slice(0, GENERAL_CHECKSUM_SIZE)),
+    layout.generalChecksumOffset,
+    computeChecksum16(bytes.slice(0, layout.generalChecksumSize)),
   )
 
   return parseFromBytes(parsed.fileName, bytes)
