@@ -27,6 +27,8 @@ export type UnitSelectorOption = {
   searchText: string
 }
 
+type IdKind = 'character' | 'class' | 'item' | 'id'
+
 function formatRowValue(value: number | string): string {
   return String(value)
 }
@@ -41,6 +43,62 @@ function formatTechnicalOffset(offset: number): string {
 
 function formatTypeLabel(type: FieldRow['type']): string {
   return type === 'bytes' ? 'HEX' : type.toUpperCase()
+}
+
+function toSentenceCaseWords(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_\-.]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+function resolveIdKind(row: FieldRow): IdKind | string | null {
+  if (row.labelKey === 'field.unit.characterId') return 'character'
+  if (row.labelKey === 'field.unit.classId') return 'class'
+  if (row.labelKey === 'field.unit.itemId' || row.labelKey === 'field.inventory.convoyItemId') return 'item'
+
+  const memberToken = /\.([a-zA-Z0-9]+Id)$/.exec(row.memberPath)?.[1]
+  if (memberToken) {
+    return memberToken.slice(0, -2) || 'id'
+  }
+
+  const labelToken = /^field\.[^.]+\.([a-zA-Z0-9]+Id)$/.exec(row.labelKey)?.[1]
+  if (labelToken) {
+    return labelToken.slice(0, -2) || 'id'
+  }
+
+  return null
+}
+
+function formatIdHint(row: FieldRow, t: Translate): string | null {
+  if (typeof row.value !== 'number' || !Number.isSafeInteger(row.value)) {
+    return null
+  }
+  const idKind = resolveIdKind(row)
+  if (!idKind) {
+    return null
+  }
+
+  const kindLabel =
+    idKind === 'character' || idKind === 'class' || idKind === 'item' || idKind === 'id'
+      ? t(`structuredEditor.idKind.${idKind}`, {
+          defaultValue: toSentenceCaseWords(idKind).replace(/^./, (char) => char.toUpperCase()),
+        })
+      : toSentenceCaseWords(idKind).replace(/^./, (char) => char.toUpperCase())
+
+  const name = row.value === 0
+    ? t('structuredEditor.idName.none', { defaultValue: 'None' })
+    : t(`structuredEditor.idName.${idKind}.${row.value}`, {
+        defaultValue: t('structuredEditor.idName.unknown', { defaultValue: 'Unknown' }),
+      })
+
+  return t('structuredEditor.idHint', {
+    kind: kindLabel,
+    name,
+    id: row.value,
+    defaultValue: `${kindLabel} name: ${name} (ID ${row.value})`,
+  })
 }
 
 function toTranslatedError(
@@ -323,6 +381,7 @@ export function BlockStructuredTable({
     const error = state.errors[row.key]
     const draftValue = state.drafts[row.key] ?? canonicalValues[row.key] ?? ''
     const isDirty = draftValue !== canonicalValues[row.key]
+    const idHint = formatIdHint(row, t)
 
     return (
       <tr key={row.key}>
@@ -354,6 +413,7 @@ export function BlockStructuredTable({
                 }
               }}
             />
+            {idHint && !error && <p className="muted">{idHint}</p>}
             {error && <p className="inline-error">{error}</p>}
           </div>
         </td>

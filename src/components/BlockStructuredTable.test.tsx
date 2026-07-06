@@ -172,6 +172,45 @@ describe('BlockStructuredTable', () => {
     expect(markup).not.toContain('field.tech.fe6Units_0_raw_34')
   })
 
+  it('renders ID hint copy for character/class/item fields', () => {
+    const markup = renderToStaticMarkup(
+      <BlockStructuredTable
+        blockKey="test-block"
+        rows={[
+          makeRow({
+            key: 'unit.characterId',
+            domain: 'units',
+            groupKey: 'units.0',
+            memberPath: 'units[0].characterId',
+            labelKey: 'field.unit.characterId',
+            value: 12,
+          }),
+          makeRow({
+            key: 'unit.classId',
+            domain: 'units',
+            groupKey: 'units.0',
+            memberPath: 'units[0].classId',
+            labelKey: 'field.unit.classId',
+            value: 0,
+          }),
+          makeRow({
+            key: 'unit.itemId',
+            domain: 'units',
+            groupKey: 'units.0',
+            memberPath: 'units[0].items[0].itemId',
+            labelKey: 'field.unit.itemId',
+            value: 45,
+          }),
+        ]}
+        onApplyEdit={() => undefined}
+      />,
+    )
+
+    expect(markup).toContain('Character name: Unknown (ID 12)')
+    expect(markup).toContain('Class name: None (ID 0)')
+    expect(markup).toContain('Item name: Unknown (ID 45)')
+  })
+
   it('renders page jump and searchable unit selector controls for structured sections', () => {
     const markup = renderToStaticMarkup(
       <BlockStructuredTable
